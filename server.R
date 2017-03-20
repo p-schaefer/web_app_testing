@@ -8,20 +8,21 @@
 #> library(rsconnect)
 #> rsconnect::deployApp('C:/Users/Patrick/Documents/BA_webapp/web_app')
 
-library(shiny)
-library(rpanel)
-library(MASS)
-library(RColorBrewer)
-library(robustbase)
-library(vegan)
-library(biotools)
-library(caret)
-library(gplots)
-library(mvoutlier)
-library(testit,car)
-library(BenthicAnalysis)
+#library(shiny)
+#library(rpanel)
+#library(MASS)
+#library(RColorBrewer)
+#library(robustbase)
+#library(vegan)
+#library(biotools)
+#library(caret)
+#library(gplots)
+#library(mvoutlier)
+#library(testit,car)
+#library(BenthicAnalysis)
 
 shinyServer(function(input, output) {
+  library(BenthicAnalysistesting)
 
   #########################################################
   #DATA INPUT
@@ -36,7 +37,7 @@ shinyServer(function(input, output) {
     validate(
       need(input$inbioFile != "", "Please select a data set")
     )
-    d<-benth.met(x=read.csv(input$inbioFile$datapath, header=F,strip.white=TRUE), tax.fields=input$taxa.names, site.fields=input$site.names, HBI = NULL)
+    d<-BenthicAnalysistesting::benth.met(x=read.csv(input$inbioFile$datapath, header=F,strip.white=TRUE), tax.fields=input$taxa.names, site.fields=input$site.names, HBI = NULL)
     d
   })
 
