@@ -26,9 +26,10 @@ sidebar <- dashboardSidebar(
                              checkboxInput("metdata",label=h5("Input data are metrics"),value=F),
                              radioButtons(inputId="rawFormat", label = h5("Input File Format"),choices = list("Long" ,"Wide" ),inline=T, selected = "")
                              
-            )
-            
-             
+            ),
+            conditionalPanel("output.finalizeRaw==true && input.sidebarmenu === 'rawdatainput'",
+                             actionButton("finalize.raw","Finalize")
+                             )
     )
   )
 )
@@ -55,41 +56,64 @@ body <- dashboardBody(
     tabItem(tabName = "rawdatainput",
             h2("Raw Data Input"),
             fluidRow(
-              box(width=12,
-                  DT::dataTableOutput("rawDataView")
+              tabBox("Data",width=12,
+                tabPanel("Raw",status="warning",collapsible = T,solidHeader = T,
+                         DT::dataTableOutput("rawDataView")
+                         ),
+                tabPanel("Taxa",
+                         DT::dataTableOutput("view.taxa")
+                         ),
+                tabPanel("Habitat")
               )
             ),
             fluidRow(
-              box(title="Taxa/Metrics",width=3,
-                  conditionalPanel(condition="input.rawFormat == 'Wide'",
-                                   numericInput("rawData_taxarows", label = h5("Rows of Taxa Identifiers"), min=1,value=1),
-                                   conditionalPanel("input.rawData_taxarows >1 ",
-                                                    uiOutput("wideTaxaCols1")
-                                                    ),
-                                   conditionalPanel("input.rawData_taxarows == 1 ",
-                                                    uiOutput("wideTaxaCols2"),
-                                                    textInput("text", label = h5("Character that separates taxa names"), value = ";")
-                                                    )
-                                   )
-                  ),
-              conditionalPanel(condition="input.rawFormat == 'Long'",
-                               box(width=3,
-                                   h2("Taxa/Metric Columns - wide"),
-                                   h2("Taxa/Metric Rows - wide"))
+              column(width=6,
+                box(title="Columns",width=12,status="primary",collapsible = T,solidHeader = T,
+                    conditionalPanel(condition="input.rawFormat == 'Wide'",
+                                     numericInput("rawData_taxarows", label = h5("Rows of column Identifiers"), min=1,value=1)
+                    ),
+                    conditionalPanel("input.rawFormat == 'Wide' && input.rawData_taxarows == 1 ",
+                                     textInput("text", label = h5("Character that separates taxa names"), value = ";")
+                    ),
+                    uiOutput("wideTaxaCols1")
+                )
+                
               ),
-              
-              box(title="Sites/Sampling Events",width=3,
-                  uiOutput("wideSiteIDCols")
-                  ),
-              box(title="Habitat Descriptors",width=3,
-                  uiOutput("habitatCols")
-                  ),
-              box(title="Coordinates (optional)",width=3,
-                  uiOutput("eastingCols"),
-                  uiOutput("northingCols"),
-                  uiOutput("EPSGCols")
-                  )
-            )
+              column(width=6,
+                box(title="Assign Columns", width=NULL,status="success",collapsible = T,solidHeader = T,
+                    conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                     column(width=6,
+                                            actionButton("raw.siteID.cols", "Site/Sampling Events"),
+                                            br(),
+                                            actionButton("raw.taxa.cols", "Taxa or Metrics"),
+                                            br(),
+                                            actionButton("raw.habitat.cols", "Habitat Descriptors"),
+                                            br(),
+                                            conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Values"))
+                                     ),
+                                     column(width=6,
+                                            actionButton("raw.siteID.cols.rem", "Undo"),
+                                            br(),
+                                            actionButton("raw.taxa.cols.rem", "Undo"),
+                                            br(),
+                                            actionButton("raw.habitat.cols.rem", "Undo"),
+                                            br(),
+                                            conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
+                                            
+                                     )
+                    )
+                ),
+                conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                 box(title="Coordinates",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                     uiOutput("eastingCols"),
+                                     uiOutput("northingCols"),
+                                     uiOutput("ESPGCols"),
+                                     actionButton("raw.coord.cols", "Coordinates"),
+                                     actionButton("raw.coord.cols.rem", "Undo")
+                                 )
+                )
+              )
+              )
             )
     )
   )

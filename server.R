@@ -17,13 +17,14 @@ shinyServer(function(input, output) {
     validate(
       need(input$inrawbioFile != "", "Please upload a data file")
     )
-    output<-read.csv(input$inrawbioFile$datapath,strip.white=TRUE, header=if(input$metdata==T) T else F)
+    output<-read.csv(input$inrawbioFile$datapath,strip.white=TRUE, header=F)
+    output<-data.frame(apply(output,2,as.character))
     output
   })
   
   output$rawDataView<-renderDataTable({#Renders raw data table
     DT::datatable(raw.bio.data(),
-                  options(pageLength = 5))
+                  options=list(pageLength = 5,scrollX=T))
   })
   
   raw.data.rows<-reactive({
@@ -41,78 +42,151 @@ shinyServer(function(input, output) {
     validate(
       need(input$rawFormat!="","")
     )
-    
-    if (input$rawFormat=="Wide") {
-      paste0(raw.bio.data()[1:raw.data.rows(),],sep=";")
-    }
+    data<-raw.bio.data()
+    output<-as.vector(sapply(data[1:max(raw.data.rows(),1),],paste0,collapse="",sep=";"))
+    substr(output,start=1,stop=(nchar(output)-1))
   })
 
   output$wideTaxaCols1 = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
-    selectInput(inputId="widetaxacols1", label=h5('Columns of taxa or metrics'), multiple = TRUE,selectize=FALSE,
-                choices=raw.colnames()[!raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawnorthingcols&
-                                         !raw.colnames()%in%input$rawepsgcols])    
+    selectInput(inputId="widetaxacols1", label=h5('Columns of taxa or metrics'), multiple = TRUE,selectize=FALSE,size=10,
+                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
+                                         !raw.colnames()%in%taxa.ID.cols$data&
+                                         !raw.colnames()%in%habitat.ID.cols$data&
+                                         !raw.colnames()%in%abund.ID.cols$data&
+                                         !raw.colnames()%in%coord.ID.cols$east&
+                                         !raw.colnames()%in%coord.ID.cols$north&
+                                         !raw.colnames()%in%coord.ID.cols$espg
+                                         ])    
   })
-  output$wideTaxaCols2 = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
-    selectInput(inputId="widetaxacols2", label=h5('Columns of taxa or metrics'), multiple = TRUE,selectize=FALSE,
-                choices=raw.colnames()[!raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawnorthingcols&
-                                         !raw.colnames()%in%input$rawepsgcols])    
+  output$eastingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
+    selectInput(inputId="raw.east", label=h5('Easting or Longitude'), multiple = F,selectize=T,
+                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
+                                         !raw.colnames()%in%taxa.ID.cols$data&
+                                         !raw.colnames()%in%habitat.ID.cols$data&
+                                         !raw.colnames()%in%abund.ID.cols$data&
+                                         !raw.colnames()%in%coord.ID.cols$east&
+                                         !raw.colnames()%in%coord.ID.cols$north&
+                                         !raw.colnames()%in%coord.ID.cols$espg
+                                       ])    
+  })
+  output$northingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
+    selectInput(inputId="raw.north", label=h5('Northing or Latitude'), multiple = F,selectize=T,
+                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
+                                         !raw.colnames()%in%taxa.ID.cols$data&
+                                         !raw.colnames()%in%habitat.ID.cols$data&
+                                         !raw.colnames()%in%abund.ID.cols$data&
+                                         !raw.colnames()%in%coord.ID.cols$east&
+                                         !raw.colnames()%in%coord.ID.cols$north&
+                                         !raw.colnames()%in%coord.ID.cols$espg
+                                       ])    
+  })
+  output$ESPGCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
+    selectInput(inputId="raw.espg", label=h5('ESPG'), multiple = F,selectize=T,
+                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
+                                         !raw.colnames()%in%taxa.ID.cols$data&
+                                         !raw.colnames()%in%habitat.ID.cols$data&
+                                         !raw.colnames()%in%abund.ID.cols$data&
+                                         !raw.colnames()%in%coord.ID.cols$east&
+                                         !raw.colnames()%in%coord.ID.cols$north&
+                                         !raw.colnames()%in%coord.ID.cols$espg
+                                       ])    
+  })
+  
+  site.ID.cols<-reactiveValues(data=NULL) #Set site ID columns
+  observeEvent(input$raw.siteID.cols,{
+    site.ID.cols$data<-input$widetaxacols1
+  })
+  observeEvent(input$raw.siteID.cols.rem,{
+    site.ID.cols$data<-NULL
+  })
+  taxa.ID.cols<-reactiveValues(data=NULL) #Set Taxa/Metrics columns
+  observeEvent(input$raw.taxa.cols,{
+    taxa.ID.cols$data<-input$widetaxacols1
+  })
+  observeEvent(input$raw.taxa.cols.rem,{
+    taxa.ID.cols$data<-NULL
+  })
+  habitat.ID.cols<-reactiveValues(data=NULL) #Set Habitat columns
+  observeEvent(input$raw.habitat.cols,{
+    habitat.ID.cols$data<-input$widetaxacols1
+  })
+  observeEvent(input$raw.habitat.cols.rem,{
+    habitat.ID.cols$data<-NULL
+  })
+  abund.ID.cols<-reactiveValues(data=NULL) #Set Habitat columns
+  observeEvent(input$raw.abund.cols,{
+    abund.ID.cols$data<-input$widetaxacols1
+  })
+  observeEvent(input$raw.abund.cols.rem,{
+    abund.ID.cols$data<-NULL
   })
 
-  output$wideSiteIDCols = renderUI({#number of rows used for site identifiers
-    selectInput(inputId="rawsitecols", label=h5('Columns of Sites/Sampling events'), multiple = TRUE,selectize=FALSE,
-                choices=raw.colnames()[!raw.colnames()%in%input$widetaxacols1&
-                                         !raw.colnames()%in%input$widetaxacols2&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawnorthingcols&
-                                         !raw.colnames()%in%input$rawepsgcols])    
+  coord.ID.cols<-reactiveValues(east=NULL,north=NULL,espg=NULL) #Set Coordinate columns
+  observeEvent(input$raw.coord.cols,{
+    coord.ID.cols$east<-input$raw.east
+    coord.ID.cols$north<-input$raw.north
+    coord.ID.cols$espg<-input$raw.espg
+  })
+  observeEvent(input$raw.coord.cols.rem,{
+    coord.ID.cols$east<-NULL
+    coord.ID.cols$north<-NULL
+    coord.ID.cols$espg<-NULL
   })
   
-  output$habitatCols = renderUI({#number of rows used for habitat desciptors
-    selectInput(inputId="rawhabitatcols", label=h5('Columns of Habitat Descriptors'), multiple = TRUE,selectize=FALSE,
-                choices=raw.colnames()[!raw.colnames()%in%input$widetaxacols1&
-                                         !raw.colnames()%in%input$widetaxacols2&
-                                         !raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawnorthingcols&
-                                         !raw.colnames()%in%input$rawepsgcols])    
+  output$finalizeRaw<-reactive({ #when site ID and taxa ID columns are entered, the option to finalize options becomes available
+    if (!is.null(site.ID.cols$data)&!is.null(taxa.ID.cols$data)){
+      if (input$rawFormat=="Long"&!is.null(abund.ID.cols$data)){
+        TRUE
+      } else {
+        TRUE
+      }
+    } else {
+      FALSE
+    }
+  })
+  outputOptions(output, 'finalizeRaw', suspendWhenHidden=FALSE)
+  
+  #########################################################
+  #When Raw Data are finalized
+  ########################################################
+  
+  taxa.by.site<-reactive({
+    validate(
+      need(input$finalize.raw,"Finalize raw data")
+    )
+    input$finalize.raw
+    isolate(
+      if (input$rawFormat=="Wide"){
+        site.names<-apply(raw.bio.data()[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+        site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        output<-raw.bio.data()[max(raw.data.rows()+1,2):nrow(raw.bio.data()),raw.colnames()%in%taxa.ID.cols$data]
+        output<-data.frame(sapply(output,as.numeric))
+        rownames(output)<-site.names
+        colnames(output)<-taxa.ID.cols$data
+      }
+      )
+    isolate(
+      if (input$rawFormat=="Long") {
+        site.names<-sapply(raw.bio.data()[,raw.colnames()%in%site.ID.cols$data],paste0,collapse="",sep=";")
+        site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        site.names<-unique(site.names)
+        
+        output<-reshape(data=raw.bio.data()[,raw.colnames()%in%site.ID.cols$data|
+                                              raw.colnames()%in%taxa.ID.cols$data|
+                                              raw.colnames()%in%abund.ID.cols$data],
+                idvar=colnames(raw.bio.data())[raw.colnames()%in%site.ID.cols$data],
+                timevar=colnames(raw.bio.data())[raw.colnames()%in%taxa.ID.cols$data],
+                direction="wide")
+        output<-data.frame(output)
+      }
+    )
+    output
   })
   
-  output$eastingCols = renderUI({#number of rows used for Easting/Latitude
-    selectInput(inputId="raweastingcols", label=h5('Columns of Eastings or Longitude'),selectize=F,selected="",
-                choices=c("",raw.colnames()[!raw.colnames()%in%input$widetaxacols1&
-                                         !raw.colnames()%in%input$widetaxacols2&
-                                         !raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$rawnorthingcols&
-                                         !raw.colnames()%in%input$rawepsgcols]))    
+  output$view.taxa<-renderDataTable({#Renders raw data table
+    DT::datatable(taxa.by.site(),
+                  options=list(pageLength = 5,scrollX=T))
   })
-  output$northingCols = renderUI({#number of rows used for Easting/Latitude
-    selectInput(inputId="rawnorthingcols", label=h5('Columns of Northings or Latitude'),selectize=F,selected="",
-                choices=c("",raw.colnames()[!raw.colnames()%in%input$widetaxacols1&
-                                         !raw.colnames()%in%input$widetaxacols2&
-                                         !raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawepsgcols]))    
-  })
-  output$EPSGCols = renderUI({#number of rows used for Easting/Latitude
-    selectInput(inputId="rawepsgcols", label=h5('Columns of EPSG codes'),selectize=F,selected="",
-                choices=c("",raw.colnames()[!raw.colnames()%in%input$widetaxacols1&
-                                         !raw.colnames()%in%input$widetaxacols2&
-                                         !raw.colnames()%in%input$rawsitecols&
-                                         !raw.colnames()%in%input$rawhabitatcols&
-                                         !raw.colnames()%in%input$raweastingcols&
-                                         !raw.colnames()%in%input$rawnorthingcols]))    
-  })
-  
-
   
 
   #########################################################
