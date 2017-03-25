@@ -55,11 +55,12 @@ shinyServer(function(input, output) {
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$north&
-                                         !raw.colnames()%in%coord.ID.cols$espg
+                                         !raw.colnames()%in%coord.ID.cols$espg&
+                                         !raw.colnames()%in%reftest.ID.cols$data
                                          ])    
   })
-  output$eastingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
-    selectInput(inputId="raw.east", label=h5('Easting or Longitude'), multiple = F,selectize=T,
+  output$test.vs.ref = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
+    selectInput(inputId="raw.testrefcols", label=h5('"TEST or REF Site'), multiple = F,selectize=T,selected = "",
                 choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
                                          !raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%habitat.ID.cols$data&
@@ -67,28 +68,33 @@ shinyServer(function(input, output) {
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$north&
                                          !raw.colnames()%in%coord.ID.cols$espg
+                                       ])    
+  })
+  output$eastingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
+    selectInput(inputId="raw.east", label=h5('Easting or Longitude'), multiple = F,selectize=T,selected = "",
+                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
+                                         !raw.colnames()%in%abund.ID.cols$data&
+                                         !raw.colnames()%in%coord.ID.cols$north&
+                                         !raw.colnames()%in%coord.ID.cols$espg&
+                                         !raw.colnames()%in%reftest.ID.cols$data
                                        ])    
   })
   output$northingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
-    selectInput(inputId="raw.north", label=h5('Northing or Latitude'), multiple = F,selectize=T,
-                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
-                                         !raw.colnames()%in%taxa.ID.cols$data&
-                                         !raw.colnames()%in%habitat.ID.cols$data&
+    selectInput(inputId="raw.north", label=h5('Northing or Latitude'), multiple = F,selectize=T,selected = "",
+                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
-                                         !raw.colnames()%in%coord.ID.cols$north&
-                                         !raw.colnames()%in%coord.ID.cols$espg
+                                         !raw.colnames()%in%coord.ID.cols$espg&
+                                         !raw.colnames()%in%reftest.ID.cols$data
                                        ])    
   })
   output$ESPGCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
-    selectInput(inputId="raw.espg", label=h5('ESPG'), multiple = F,selectize=T,
-                choices=raw.colnames()[!raw.colnames()%in%site.ID.cols$data&
-                                         !raw.colnames()%in%taxa.ID.cols$data&
-                                         !raw.colnames()%in%habitat.ID.cols$data&
+    selectInput(inputId="raw.espg", label=h5('ESPG'), multiple = F,selectize=T,selected = "",
+                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$north&
-                                         !raw.colnames()%in%coord.ID.cols$espg
+                                         !raw.colnames()%in%reftest.ID.cols$data
                                        ])    
   })
   
@@ -120,6 +126,15 @@ shinyServer(function(input, output) {
   observeEvent(input$raw.abund.cols.rem,{
     abund.ID.cols$data<-NULL
   })
+  
+  reftest.ID.cols<-reactiveValues(data=NULL) #Set Habitat columns
+  observeEvent(input$raw.testref.cols,{
+    reftest.ID.cols$data<-input$raw.testrefcols
+  })
+  observeEvent(input$raw.testref.cols.rem,{
+    reftest.ID.cols$data<-NULL
+  })
+  
 
   coord.ID.cols<-reactiveValues(east=NULL,north=NULL,espg=NULL) #Set Coordinate columns
   observeEvent(input$raw.coord.cols,{
@@ -134,16 +149,19 @@ shinyServer(function(input, output) {
   })
   
   output$finalizeRaw<-reactive({ #when site ID and taxa ID columns are entered, the option to finalize options becomes available
-    if (!is.null(site.ID.cols$data)&!is.null(taxa.ID.cols$data)){
-      if (input$rawFormat=="Long"&!is.null(abund.ID.cols$data)){
-        TRUE
-      } else {
-        TRUE
-      }
+    validate(
+      need(input$rawFormat != "", "")
+    )
+    if (!is.null(site.ID.cols$data)&!is.null(taxa.ID.cols$data)&input$rawFormat=="Wide"){
+      TRUE
     } else {
+      if (!is.null(site.ID.cols$data)&!is.null(taxa.ID.cols$data)&input$rawFormat=="Long"&!is.null(abund.ID.cols$data)){
+      TRUE 
+      } else {
       FALSE
+      }
     }
-  })
+  }) #Detects when enough data have been specified
   outputOptions(output, 'finalizeRaw', suspendWhenHidden=FALSE)
   
   #########################################################
@@ -169,15 +187,15 @@ shinyServer(function(input, output) {
       if (input$rawFormat=="Long") {
         site.names<-sapply(raw.bio.data()[,raw.colnames()%in%site.ID.cols$data],paste0,collapse="",sep=";")
         site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
-        site.names<-unique(site.names)
+        #site.names<-unique(site.names)
         
-        output<-reshape(data=raw.bio.data()[,raw.colnames()%in%site.ID.cols$data|
-                                              raw.colnames()%in%taxa.ID.cols$data|
-                                              raw.colnames()%in%abund.ID.cols$data],
-                idvar=colnames(raw.bio.data())[raw.colnames()%in%site.ID.cols$data],
-                timevar=colnames(raw.bio.data())[raw.colnames()%in%taxa.ID.cols$data],
-                direction="wide")
-        output<-data.frame(output)
+        taxa.names<-sapply(raw.bio.data()[,raw.colnames()%in%taxa.ID.cols$data],paste0,collapse="",sep=";")
+        taxa.names<-substr(taxa.names,start=1,stop=(nchar(taxa.names)-1))
+        #taxa.names<-unique(taxa.names)
+        
+        input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(raw.bio.data()[,raw.colnames()%in%abund.ID.cols$data]))
+        int.output<-aggregate(abund~sites+taxa, data=input,sum)
+        output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
       }
     )
     output
@@ -187,6 +205,7 @@ shinyServer(function(input, output) {
     DT::datatable(taxa.by.site(),
                   options=list(pageLength = 5,scrollX=T))
   })
+  
   
 
   #########################################################

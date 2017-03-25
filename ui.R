@@ -104,13 +104,18 @@ body <- dashboardBody(
                     )
                 ),
                 conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                 box(title="Test vs. Reference",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                     uiOutput("test.vs.ref"),
+                                     actionButton("raw.testref.cols", "Test and Reference Sites"),
+                                     actionButton("raw.testref.cols.rem", "Undo")
+                                     ),
                                  box(title="Coordinates",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
                                      uiOutput("eastingCols"),
                                      uiOutput("northingCols"),
                                      uiOutput("ESPGCols"),
                                      actionButton("raw.coord.cols", "Coordinates"),
                                      actionButton("raw.coord.cols.rem", "Undo")
-                                 )
+                                     )
                 )
               )
               )
