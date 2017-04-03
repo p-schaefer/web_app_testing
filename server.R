@@ -6,7 +6,11 @@ library(DT)
 library(leaflet)
 library(sp)
 
-jsResetCode <- "shinyjs.reset = function() {history.go(0)}"
+convertMenuItem <- function(mi,tabName) {
+  mi$children[[1]]$attribs['data-toggle']="tab"
+  mi$children[[1]]$attribs['data-value'] = tabName
+  mi
+}
 
 shinyServer(function(input, output, session) {
 
@@ -65,7 +69,11 @@ shinyServer(function(input, output, session) {
     )
     data<-raw.bio.data$data
     output<-as.vector(sapply(data[1:max(raw.data.rows(),1),],paste0,collapse="",sep=";"))
-    substr(output,start=1,stop=(nchar(output)-1))
+    output<-substr(output,start=1,stop=(nchar(output)-1))
+    while(any(substr(output,1,1)==";")){
+      output[substr(output,1,1)==";"]<-substr(output,2,nchar(output))[substr(output,1,1)==";"]
+    }
+    output
   })
 
   output$wideTaxaCols1 = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
