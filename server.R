@@ -253,7 +253,7 @@ shinyServer(function(input, output, session) {
             
           }
           
-          input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data]))
+          input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data])))
           int.output<-aggregate(abund~sites+taxa, data=input,sum)
           output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
         }
