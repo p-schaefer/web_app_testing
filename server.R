@@ -160,7 +160,6 @@ shinyServer(function(input, output, session) {
     reftest.ID.cols$data<-NULL
   })
   
-  
   coord.ID.cols<-reactiveValues(east=NULL,north=NULL,espg=NULL) #Set Coordinate columns
   observeEvent(input$raw.coord.cols,{
     coord.ID.cols$east<-input$raw.east
@@ -171,6 +170,12 @@ shinyServer(function(input, output, session) {
     coord.ID.cols$east<-NULL
     coord.ID.cols$north<-NULL
     coord.ID.cols$espg<-NULL
+  })
+  
+  output$view.coord.cols<-renderPrint({
+    paste0(coord.ID.cols$east," | ",
+    coord.ID.cols$north," | ",
+    coord.ID.cols$espg)
   })
   
   output$finalizeRaw<-reactive({ #when site ID and taxa ID columns are entered, the option to finalize options becomes available
@@ -278,7 +283,6 @@ shinyServer(function(input, output, session) {
             site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
           }
           output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
-          output<-data.frame(apply(output,2,as.numeric))
           rownames(output)<-site.names
           colnames(output)<-habitat.ID.cols$data
         }
@@ -292,20 +296,84 @@ shinyServer(function(input, output, session) {
             site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
           }
           
-          output<-data.frame(raw.bio.data$data[,raw.colnames()%in%habitat.ID.cols$data])
+          output<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%habitat.ID.cols$data])
           output<-output[!duplicated(site.names),]
           rownames(output)<-site.names[!duplicated(site.names)]
           colnames(output)<-habitat.ID.cols$data
-          output<-output[-c(1),]
         }
       )
       habitat.by.site$data<-output
     }
   })
+  
   output$view.habitat<-renderDataTable({#Renders raw data table
     DT::datatable(habitat.by.site$data,
                   options=list(pageLength = 5,scrollX=T))
   })
+  
+  coordinates.by.site<-reactiveValues(data.all=NULL,data.unique=NULL) #coordinate by site table
+  observeEvent(input$finalize_raw,{
+    if (!is.null(coord.ID.cols$east)&!is.null(coord.ID.cols$north)&!is.null(coord.ID.cols$espg)){
+      isolate(
+        if (input$rawFormat=="Wide"){
+          if (length(site.ID.cols$data)==1){
+            site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
+          } else {
+            site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+          }
+          output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                    raw.colnames()%in%coord.ID.cols$east|
+                                      raw.colnames()%in%coord.ID.cols$north|
+                                      raw.colnames()%in%coord.ID.cols$espg]
+          output<-data.frame(apply(output,2,as.numeric))
+          rownames(output)<-site.names
+          colnames(output)<-c("east","north","epsg")
+        }
+      )
+      isolate(
+        if (input$rawFormat=="Long") {
+          if (length(site.ID.cols$data)==1){
+            site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
+          } else {
+            site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+          }
+          
+          output<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%coord.ID.cols$east|
+                                                 raw.colnames()%in%coord.ID.cols$north|
+                                                 raw.colnames()%in%coord.ID.cols$espg])
+          output<-output[!duplicated(site.names),]
+          rownames(output)<-site.names[!duplicated(site.names)]
+          colnames(output)<-c("east","north","epsg")
+          output<-data.frame(apply(output,2,as.numeric))
+          
+        }
+      )
+      validate(
+        need(!any(is.na(output)),"NAs detected")
+      )
+      for (i in unique(output$epsg)){ #Convert coordinates to EPSG 4326
+        #sp::coordinates(output)<- ~ east+north
+        #output.coords<-NA
+        output.coords<-output[output$epsg==i,]
+        sp::coordinates(output.coords)<- ~ east+north
+        sp::proj4string(output.coords) <- sp::CRS(paste0("+init=epsg:",i))
+        output.coords <- sp::spTransform(output.coords, CRS("+init=epsg:4326"))
+        output.coords<-as.data.frame(output.coords)
+        output[output$epsg==i,]<-output.coords[,colnames(output)]
+      }
+      rownames(output)<-site.names[!duplicated(site.names)]
+      coordinates.by.site$data.unique<-unique(output)
+      coordinates.by.site$data.all<-output
+    }
+  })
+  
+  output$view.coords<-renderDataTable({#Renders raw data table
+    DT::datatable(coordinates.by.site$data.unique,
+                  options=list(pageLength = 5,scrollX=T))
+  })
+  
   
   #########################################################
   #Calculate Summary Metrics
@@ -510,9 +578,46 @@ shinyServer(function(input, output, session) {
   )
   
   #########################################################
-  #Metric Transformations
+  #Mapping
   #########################################################
   
+  map_icons<-reactiveValues(data=NULL)
+  
+  observe({
+    map_icons$data<-NULL
+  })
+  
+  
+  output$mymap <- renderLeaflet({
+    validate(
+      need(!is.null(coordinates.by.site$data.unique),"")
+    )
+    m <- leaflet()
+    if (input$basemap_input=="Street"){
+      #m <- addTiles(m)
+      m<-addProviderTiles(map=m,
+                          provider=providers$Esri.WorldTopoMap)
+    }
+    if (input$basemap_input=="Satellite"){
+      m<-addProviderTiles(map=m,
+                          provider=providers$Esri.WorldImagery)
+      
+      #m <- addTiles(m,urlTemplate = "https://mts1.google.com/vt/lyrs=s&hl=en&src=app&x={x}&y={y}&z={z}&s=G", attribution = 'Google')
+    }
+    if (input$map_admin==T){
+      m<-addProviderTiles(map=m,
+                          provider=providers$OpenMapSurfer.AdminBounds)
+    }
+    m <- addMarkers(map=m,
+                    lng=coordinates.by.site$data.unique$east,
+                    lat=coordinates.by.site$data.unique$north,
+                    label=rownames(coordinates.by.site$data.unique))
+    m
+    })
+  
+  #########################################################
+  #Hold
+  #########################################################
   
   
   #########################################################

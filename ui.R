@@ -40,14 +40,16 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         )
                        ),
                        menuSubItem("Metric Transformations",tabName = "transSummaryMetrics",icon=NULL),
-                       menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL),
-                       menuSubItem("Mapping",icon=NULL,tabName="Mapping"),
-                       conditionalPanel("input.sidebarmenu === 'Mapping'",
-                                        h5("Mapping options")
-                       )
+                       menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL)
               ),
               menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
                        menuSubItem("Setup",tabName = "eaxplorationSetup",icon=NULL)
+              ),
+              menuItem("Mapping",tabName="Mapping", icon=icon("map"), 
+                       menuSubItem("Setup",tabName = "Mappingsetup",icon=NULL),
+                       conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
+                                        h5("Mapping options")
+                       )
               ),
               menuItem("RCA Single",tabname="RCA_single",icon=icon("gear"),
                        menuSubItem("Setup",tabName = "RCA_singleSetup",icon=NULL)
@@ -116,7 +118,7 @@ body <- shinydashboard::dashboardBody(
                                                br()
                                              ),
                                              fluidRow(
-                                               column(width=6,
+                                               column(width=4,
                                                       box(title="Columns",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = T,
                                                           helpText("Highlight columns (multiple with shift) then assign them to an attribute."),
                                                           conditionalPanel(condition="input.rawFormat == 'Wide'",
@@ -129,7 +131,7 @@ body <- shinydashboard::dashboardBody(
                                                       )
                                                       
                                                ),
-                                               column(width=6,
+                                               column(width=4,
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
                                                                        box(title="Assign Columns to Attributes", width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,                                                       column(width=6,
                                                                                                                                                                                                                                                          actionButton("raw.siteID.cols", "Site/Sampling Events"),
@@ -140,7 +142,7 @@ body <- shinydashboard::dashboardBody(
                                                                                                                                                                                                                                                          br(),
                                                                                                                                                                                                                                                          conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
                                                                        ),
-                                                                       column(width=6,
+                                                                       column(width=4,
                                                                               actionButton("raw.siteID.cols.rem", "Undo"),
                                                                               br(),
                                                                               actionButton("raw.taxa.cols.rem", "Undo"),
@@ -162,7 +164,9 @@ body <- shinydashboard::dashboardBody(
                                                                            uiOutput("northingCols"),
                                                                            uiOutput("ESPGCols"),
                                                                            actionButton("raw.coord.cols", "Coordinates"),
-                                                                           actionButton("raw.coord.cols.rem", "Undo")
+                                                                           actionButton("raw.coord.cols.rem", "Undo"),
+                                                                           hr(),
+                                                                           verbatimTextOutput("view.coord.cols")
                                                                        )
                                                       )
                                                )
@@ -176,7 +180,7 @@ body <- shinydashboard::dashboardBody(
                                                               br(),
                                                               br(),
                                                               fluidRow(
-                                                                column(width=6,
+                                                                column(width=4,
                                                                        box(title="Calculate Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
                                                                            actionButton("calculate_metrics","Calculate Summary Metrics"),
                                                                            br(),
@@ -205,7 +209,13 @@ body <- shinydashboard::dashboardBody(
                                              DT::dataTableOutput("view.habitat"),
                                              br(),
                                              br()
+                                    ),
+                                    tabPanel("Coordinates",
+                                             DT::dataTableOutput("view.coords"),
+                                             br(),
+                                             br()
                                     )
+                                    
                              )
                            )
           ),
@@ -274,8 +284,29 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           
           
-          conditionalPanel("input.sidebarmenu === 'Mapping'",
-                           h5("Mapping")
+          conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
+                           #h5("Mapping"),
+                           leafletOutput("mymap",height = 800),
+                           
+                           absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
+                                         draggable = TRUE, top = 80, left = "auto", right = 40, bottom = "auto",
+                                         width = 330, height = "auto",
+                                         
+                                         h3("Controls"),
+                                         radioButtons("basemap_input",label="Basemap",choices=c("Satellite","Street")),
+                                         checkboxInput("map_admin",label="Administrative Boundaries"),
+                                         hr()
+                                         #selectInput("color", "Color", vars),
+                                         #selectInput("size", "Size", vars, selected = "adultpop"),
+                                         #conditionalPanel("input.color == 'superzip' || input.size == 'superzip'",
+                                                          # Only prompt for threshold when coloring or sizing by superzip
+                                        #                  numericInput("threshold", "SuperZIP threshold (top n percentile)", 5)
+                                        # ),
+                                         
+                                        # plotOutput("histCentile", height = 200),
+                                        # plotOutput("scatterCollegeIncome", height = 250)
+                           )
+                           
           )
           
           
