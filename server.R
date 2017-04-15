@@ -5,6 +5,9 @@ library(shinydashboard)
 library(DT)
 library(leaflet)
 library(sp)
+library(rgdal)
+
+options(shiny.maxRequestSize=30*1024^2)
 
 shinyServer(function(input, output, session) {
   
