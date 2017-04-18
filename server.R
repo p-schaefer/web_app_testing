@@ -314,7 +314,7 @@ shinyServer(function(input, output, session) {
                   options=list(pageLength = 5,scrollX=T))
   })
   
-  coordinates.by.site<-reactiveValues(data.all=NULL,data.unique=NULL) #coordinate by site table
+  coordinates.by.site<-reactiveValues(data.all=NULL,data.unique=NULL,gis.site.id=NULL) #coordinate by site table
   observeEvent(input$finalize_raw,{
     if (!is.null(coord.ID.cols$east)&!is.null(coord.ID.cols$north)&!is.null(coord.ID.cols$espg)){
       isolate(
@@ -366,8 +366,38 @@ shinyServer(function(input, output, session) {
         output.coords<-as.data.frame(output.coords)
         output[output$epsg==i,]<-output.coords[,colnames(output)]
       }
-      rownames(output)<-site.names[!duplicated(site.names)]
+      
+      if (length(site.ID.cols$data)==1){#Identify site ID column that corresponds to individual sites
+        gis.site.id<-site.names
+      } else {
+        temp1<-!apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],2,duplicated)
+        if (input$rawFormat=="Wide"){
+          temp2<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                    raw.colnames()%in%coord.ID.cols$east|
+                                      raw.colnames()%in%coord.ID.cols$north|
+                                      raw.colnames()%in%coord.ID.cols$espg]
+        }
+        if (input$rawFormat=="Long") {
+          temp2<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%coord.ID.cols$east|
+                                                 raw.colnames()%in%coord.ID.cols$north|
+                                                 raw.colnames()%in%coord.ID.cols$espg])
+        }
+        temp2<-!duplicated(temp2)
+        temp3<-NA
+        for (n in 1:ncol(temp1)){
+          temp3<-apply(cbind(temp1[,n],temp2), 1, function(x)(all(x)))
+          if (identical(temp3,temp2)){
+            gis.site.id<-raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data[n]]
+            break()
+          } else {
+            gis.site.id<-site.names
+          }
+        }
+      }
+
       coordinates.by.site$data.unique<-unique(output)
+      rownames(coordinates.by.site$data.unique)<-unique(gis.site.id)
+      coordinates.by.site$gis.site.id<-gis.site.id
       coordinates.by.site$data.all<-output
     }
   })
@@ -583,6 +613,29 @@ shinyServer(function(input, output, session) {
   #########################################################
   #Mapping
   #########################################################
+  
+  output$map_pointcolselect_out<-renderUI({
+    vars<-NULL
+    if (input$map_pointcolgrou=="Habitat"){
+      validate(
+        need(!is.null(habitat.by.site$data),"")
+      )
+      vars<-colnames(habitat.by.site$data)
+    }
+    if (input$map_pointcolgrou=="Taxa"){
+      validate(
+        need(!is.null(taxa.by.site$data),"")
+      )
+      vars<-colnames(taxa.by.site$data)
+    }
+    if (input$map_pointcolgrou=="Metrics"){
+      validate(
+        need(!is.null(bio.data$data$Summary.Metrics),"")
+      )
+      vars<-colnames(bio.data$data$Summary.Metrics)
+    }
+    selectInput("map_pointcolselect_in",label="Attribute",choices=vars)
+  })
   
   map_icons<-reactiveValues(data=NULL)
   

@@ -293,10 +293,11 @@ body <- shinydashboard::dashboardBody(
                                          width = 330, height = "auto",
                                          
                                          h3("Controls"),
-                                         radioButtons("basemap_input",label="Basemap",choices=c("Satellite","Street")),
+                                         radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
                                          checkboxInput("map_admin",label="Administrative Boundaries"),
-                                         hr()
-                                         #selectInput("color", "Color", vars),
+                                         hr(),
+                                         selectInput("map_pointcolgrou", "Color",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
+                                         uiOutput("map_pointcolselect_out")
                                          #selectInput("size", "Size", vars, selected = "adultpop"),
                                          #conditionalPanel("input.color == 'superzip' || input.size == 'superzip'",
                                                           # Only prompt for threshold when coloring or sizing by superzip
