@@ -442,11 +442,11 @@ shinyServer(function(input, output, session) {
     DT::datatable(bio.data$data$Summary.Metrics, options=list(pageLength = 5,scrollX=T))
   )
   output$download_raw_mets<-downloadHandler(filename = function() { paste("Metrics-",input$inrawbioFile, sep='') },
-                                            content = function(file) {write.csv(bio.data$data$Summary.Metrics,file)})
+                                            content = function(file) {write.csv(bio.data$data$Summary.Metrics,file,row.names = F)})
   output$download_raw_taxa<-downloadHandler(filename = function() { paste("Taxa-",input$inrawbioFile, sep='') },
-                                            content = function(file) {write.csv(taxa.by.site$data,file)})
+                                            content = function(file) {write.csv(taxa.by.site$data,file,row.names = F)})
   output$download_taxa_atts<-downloadHandler(filename = function() { paste("Attributes-",input$inrawbioFile, sep='') },
-                                             content = function(file) {write.csv(bio.data$data$Attributes,file)})
+                                             content = function(file) {write.csv(bio.data$data$Attributes,file,row.names = F)})
   
   
   #########################################################
@@ -611,24 +611,32 @@ shinyServer(function(input, output, session) {
   )
   
   #########################################################
+  #Habitat Variable structure
+  #########################################################
+  
+  
+  #########################################################
   #Mapping
   #########################################################
   
   output$map_pointcolselect_out<-renderUI({
+    validate(
+      need(input$map_pointcolgroup!="None","")
+    )
     vars<-NULL
-    if (input$map_pointcolgrou=="Habitat"){
+    if (input$map_pointcolgroup=="Habitat"){
       validate(
         need(!is.null(habitat.by.site$data),"")
       )
       vars<-colnames(habitat.by.site$data)
     }
-    if (input$map_pointcolgrou=="Taxa"){
+    if (input$map_pointcolgroup=="Taxa"){
       validate(
         need(!is.null(taxa.by.site$data),"")
       )
       vars<-colnames(taxa.by.site$data)
     }
-    if (input$map_pointcolgrou=="Metrics"){
+    if (input$map_pointcolgroup=="Metrics"){
       validate(
         need(!is.null(bio.data$data$Summary.Metrics),"")
       )
@@ -674,6 +682,151 @@ shinyServer(function(input, output, session) {
   #########################################################
   #Hold
   #########################################################
+  
+  #########################################################
+  #Help Texts
+  #########################################################
+  
+  #Raw Data input
+  observeEvent(input$raw.help, {
+    showModal(modalDialog(
+      size="l",
+      title = "Upload and define Raw Data",
+      hr(),
+      helpText("A single input file is used for all data. Below are examples of different input data structures."),
+      hr(),
+      fluidRow(
+        box(title=h4("Examples"),width=12, collapsible = T, collapsed = T, status="success",solidHeader = T,
+            tabBox(width = 12,
+                   tabPanel("Long Format",
+                            downloadLink(outputId="download_ex_long",label="Download"),
+                            hr(),
+                            renderDataTable({DT::datatable(read.csv("Long_example.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                            ),
+                   tabPanel("Wide Format (1 row)",
+                            downloadLink(outputId="download_ex_wide1",label="Download"),
+                            hr(),
+                            renderDataTable({DT::datatable(read.csv("Wide_example1.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                            ),
+                   tabPanel("Wide Format (multi row)",
+                            downloadLink(outputId="download_ex_wide2",label="Download"),
+                            hr(),
+                            renderDataTable({DT::datatable(read.csv("Wide_example2.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                   )
+            )
+        )
+      ),
+      hr(),
+      fluidRow(
+        h4("Select your input file here"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help1.png",
+            filetype = "image/png",
+            height = 400,
+            width = 500
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      fluidRow(
+        h4("Select the format of your input data"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help2.png",
+            filetype = "image/png",
+            height = 400,
+            width = 500
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      fluidRow(
+        h4("Highlight column(s) (multiple while holding shift) and assign them to the appropriate attributes"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help3.png",
+            filetype = "image/png",
+            height = 400,
+            width = 600
+          ))
+        }, deleteFile = FALSE),
+        renderImage({
+          return(list(
+            src = "Rawdata_help4.png",
+            filetype = "image/png",
+            height = 400,
+            width = 600
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      fluidRow(
+        h4("Some attributes (i.e. Coordinates) are selected from dropdown menus (1)"),
+        h4("Once all fields have been selected, press the Finalize Coordinates button (2)"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help5.png",
+            filetype = "image/png",
+            height = 400,
+            width = 500
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      fluidRow(
+        h4("Once the minimum necessary columns have been assigned, the Finalize button will appear. Pressing it will lock in the column assignments (1)."),
+        h4("The data can then be viewed though the tabs at the top (2)"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help6.png",
+            filetype = "image/png",
+            height = 400,
+            width = 500
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      fluidRow(
+        h4("To calculate indicator metrics, press the Taxa tab (1)."),
+        h4("Review the input taxa data and press 'Calculate Summary Metrics' (2)"),
+        h4("Calculate may take a few minutes with large datasets. Calculated summary metrics can be viewed in the table below (3)"),
+        br(),
+        renderImage({
+          return(list(
+            src = "Rawdata_help7.png",
+            filetype = "image/png",
+            height = 400,
+            width = 500
+          ))
+        }, deleteFile = FALSE),
+        br()
+      ),
+      hr(),
+      
+      footer = modalButton("Dismiss"),
+      easyClose = TRUE
+    ))
+  })
+  
+  output$download_ex_long<-downloadHandler(filename = function() { paste("Long_example.csv") },
+                                            content = function(file) {write.csv(read.csv("Long_example.csv",header=T),file,row.names = F)})
+  output$download_ex_wide1<-downloadHandler(filename = function() { paste("Wide_example1.csv") },
+                                           content = function(file) {write.csv(read.csv("Wide_example1.csv",header=T),file,row.names = F)})
+  output$download_ex_wide2<-downloadHandler(filename = function() { paste("Wide_example2.csv") },
+                                           content = function(file) {write.csv(read.csv("Wide_example2.csv",header=T),file,row.names = F)})
+  
+  #Raw Data input
   
   
   #########################################################

@@ -42,14 +42,14 @@ sidebar <- shinydashboard::dashboardSidebar(
                        menuSubItem("Metric Transformations",tabName = "transSummaryMetrics",icon=NULL),
                        menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL)
               ),
+              menuItem("Mapping",tabName="Mapping", icon=icon("map")#, 
+                       #menuSubItem("Setup",tabName = "Mappingsetup",icon=NULL),
+                       #conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
+                       #                  h5("Mapping options")
+                       # )
+              ),
               menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
                        menuSubItem("Setup",tabName = "eaxplorationSetup",icon=NULL)
-              ),
-              menuItem("Mapping",tabName="Mapping", icon=icon("map"), 
-                       menuSubItem("Setup",tabName = "Mappingsetup",icon=NULL),
-                       conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
-                                        h5("Mapping options")
-                       )
               ),
               menuItem("RCA Single",tabname="RCA_single",icon=icon("gear"),
                        menuSubItem("Setup",tabName = "RCA_singleSetup",icon=NULL)
@@ -74,31 +74,49 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           
           conditionalPanel("input.sidebarmenu === 'Details'",
-                           box(title="Introduction",width=12,status="info",collapsible = T, collapsed = F,solidHeader = T,
-                               h3("UNDER HEAVY DEVELOPMENT"),
-                               helpText("Online tool for analysis of aquatic biomonitoring data")
+                           column(width=6,
+                                  box(title=h3("Online tool for analysis of aquatic biomonitoring data"),width=12,status="info",collapsible = F, collapsed = F,solidHeader = F,
+                                      h4("UNDER HEAVY DEVELOPMENT"),
+                                      hr(),
+                                      helpText("A website for the analysis of Benthic Macroinvertebrate (BMI) data
+                                     using a Reference Condition Approach. Impairment is determined using the Test Site Analysis (TSA). 
+                                     This package provides functionallity for:"),
+                                      helpText("1) calculation of many commonly used indicator metrics for assessing the status BMI communities;"),
+                                      helpText("2) nearest-neighbour site matching using Assessment by Nearest-Neighbour
+                                        Analysis (ANNA), the Redundancy Analysis variant of ANNA (RDA-ANNA) or user-defined reference sites;"),
+                                      helpText("3) calculation of common Test Site Analysis parameters, including: F-statistic, non-centrality parameter, interval and equivalnce tests,
+                                     z-scores for all calculated metrics, mahalanobis distance scores for all sites, partial mahalanobis distance scores
+                                     for assessing significance of individual metrics, as well as upper and lower thresholds for impairment ranks;"),
+                                      helpText("4) a variety of diagnostic plots and tools for assessing the confidence of the impairment rank. These include a non-paramtetric randomization
+                                     test for the impairment rank, jacknife confidence intervals and consistency scores of the selected reference sites and jacknife consistancy of the 
+                                     entire reference set.")
+                                      
+                                  )
                            ),
-                           box(title="Implemented features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
-                               helpText("- Single input file for the follow data types: taxa or metrics, habitat descriptors, coordinates of sampling point"),
-                               helpText("- Support for long and wide data formats (long format recommended for lowest-practical-level taxonomy)"),
-                               helpText("- Support for wide data formats with multiple column headers"),
-                               helpText("- Calculation of indicator metrics for Benthic Macroinvertebrate taxa"),
-                               helpText("- HBI will be calculated at family level only - for now"),
-                               helpText("- Functional metrics can be calculated below family level"),
-                               helpText("- Download calculated Summary metrics as .csv file"),
-                               helpText("- Download calculated Taxa Attribute Data as .csv file"),
-                               helpText("- Common transformations for metrics")
-                               
-                           ),
-                           box(title="Planned features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
-                               helpText("- Better support for lowest-practical-level taxonomy"),
-                               helpText("- GIS intigration for mapping of test and reference sites"),
-                               helpText("- GIS intigration for calculation of catchment and site level attributes"),
-                               helpText("- Reference Condition Approach Bioassessment using Test Site Analysis and Assessment by Nearest-Neighbour Analysis"),
-                               helpText("- Trend analysis using Generalized Linear Mixed-Effects models")
-                           ),
-                           box(title="Known Bugs",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
-                               helpText("- none")
+                           column(width=4,offset=1,
+                                  box(title="Implemented features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
+                                      helpText("- Single input file for the follow data types: taxa or metrics, habitat descriptors, coordinates of sampling point"),
+                                      helpText("- Support for long and wide data formats (long format recommended for lowest-practical-level taxonomy)"),
+                                      helpText("- Support for wide data formats with multiple column headers"),
+                                      helpText("- Calculation of indicator metrics for Benthic Macroinvertebrate taxa"),
+                                      helpText("- HBI will be calculated at family level only - for now"),
+                                      helpText("- Functional metrics can be calculated below family level"),
+                                      helpText("- Download calculated Summary metrics as .csv file"),
+                                      helpText("- Download calculated Taxa Attribute Data as .csv file"),
+                                      helpText("- Common transformations for metrics"),
+                                      helpText("- Mapping of sampling locations")
+                                      
+                                  ),
+                                  box(title="Planned features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
+                                      helpText("- Better support for lowest-practical-level taxonomy"),
+                                      helpText("- GIS intigration for mapping of test and reference sites"),
+                                      helpText("- GIS intigration for calculation of catchment and site level attributes"),
+                                      helpText("- Reference Condition Approach Bioassessment using Test Site Analysis and Assessment by Nearest-Neighbour Analysis"),
+                                      helpText("- Trend analysis using Generalized Linear Mixed-Effects models")
+                                  ),
+                                  box(title="Known Bugs",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
+                                      helpText("- none")
+                                  )
                            )
           ),
           
@@ -109,6 +127,9 @@ body <- shinydashboard::dashboardBody(
           conditionalPanel("input.sidebarmenu === 'rawdatainput'",
                            useShinyjs(),
                            h2("Raw Data Input"),
+                           actionLink("raw.help","Help"),
+                           br(),
+                           br(),
                            fluidRow(
                              tabBox("Data",width=12,
                                     tabPanel("Raw",status="warning",collapsible = T,solidHeader = T,
@@ -133,18 +154,19 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                column(width=4,
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
-                                                                       box(title="Assign Columns to Attributes", width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,                                                       column(width=6,
-                                                                                                                                                                                                                                                         actionButton("raw.siteID.cols", "Site/Sampling Events"),
-                                                                                                                                                                                                                                                         br(),
-                                                                                                                                                                                                                                                         actionButton("raw.taxa.cols", "Taxa or Metrics"),
-                                                                                                                                                                                                                                                         br(),
-                                                                                                                                                                                                                                                         actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)"),
-                                                                                                                                                                                                                                                         br(),
-                                                                                                                                                                                                                                                         conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
-                                                                       ),
-                                                                       column(width=4,
-                                                                              actionButton("raw.siteID.cols.rem", "Undo"),
-                                                                              br(),
+                                                                       box(title="Assign Columns to Attributes", width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                           column(width=6,
+                                                                                  actionButton("raw.siteID.cols", "Site/Sampling Events"),
+                                                                                  br(),
+                                                                                  actionButton("raw.taxa.cols", "Taxa or Metrics"),
+                                                                                  br(),
+                                                                                  actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)"),
+                                                                                  br(),
+                                                                                  conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
+                                                                           ),
+                                                                           column(width=4,
+                                                                                  actionButton("raw.siteID.cols.rem", "Undo"),
+                                                                                  br(),
                                                                               actionButton("raw.taxa.cols.rem", "Undo"),
                                                                               br(),
                                                                               actionButton("raw.habitat.cols.rem", "Undo"),
@@ -156,14 +178,14 @@ body <- shinydashboard::dashboardBody(
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
                                                                        box(title="Test vs. Reference (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
                                                                            uiOutput("test.vs.ref"),
-                                                                           actionButton("raw.testref.cols", "Test and Reference Sites"),
+                                                                           actionButton("raw.testref.cols", "Finalize Test and Reference Sites"),
                                                                            actionButton("raw.testref.cols.rem", "Undo")
                                                                        ),
                                                                        box(title="Coordinates (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
                                                                            uiOutput("eastingCols"),
                                                                            uiOutput("northingCols"),
                                                                            uiOutput("ESPGCols"),
-                                                                           actionButton("raw.coord.cols", "Coordinates"),
+                                                                           actionButton("raw.coord.cols", "Finalize Coordinates"),
                                                                            actionButton("raw.coord.cols.rem", "Undo"),
                                                                            hr(),
                                                                            verbatimTextOutput("view.coord.cols")
@@ -208,7 +230,10 @@ body <- shinydashboard::dashboardBody(
                                     tabPanel("Habitat",
                                              DT::dataTableOutput("view.habitat"),
                                              br(),
-                                             br()
+                                             hr(),
+                                             fluidRow(width=12,
+                                                      box()
+                                                      )
                                     ),
                                     tabPanel("Coordinates",
                                              DT::dataTableOutput("view.coords"),
@@ -266,8 +291,8 @@ body <- shinydashboard::dashboardBody(
                                   ),
                                   tabPanel("Transformed Metrics",
                                            DT::dataTableOutput("view.transformed.metrics")
-                                           )
                                   )
+                           )
           ),
           
           ##################################################
@@ -284,28 +309,30 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           
           
-          conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
+          conditionalPanel("input.sidebarmenu === 'Mapping'",
                            #h5("Mapping"),
                            leafletOutput("mymap",height = 800),
                            
                            absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
-                                         draggable = TRUE, top = 80, left = "auto", right = 40, bottom = "auto",
+                                         draggable = F, top = 80, left = "auto", right = 40, bottom = "auto",
                                          width = 330, height = "auto",
+                                         box(title="",width=12,background= "olive",
+                                             h3("Controls"),
+                                             radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
+                                             checkboxInput("map_admin",label="Administrative Boundaries"),
+                                             hr(),
+                                             selectInput("map_pointcolgroup", "Color",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
+                                             uiOutput("map_pointcolselect_out")
+                                         )
                                          
-                                         h3("Controls"),
-                                         radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
-                                         checkboxInput("map_admin",label="Administrative Boundaries"),
-                                         hr(),
-                                         selectInput("map_pointcolgrou", "Color",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
-                                         uiOutput("map_pointcolselect_out")
                                          #selectInput("size", "Size", vars, selected = "adultpop"),
                                          #conditionalPanel("input.color == 'superzip' || input.size == 'superzip'",
-                                                          # Only prompt for threshold when coloring or sizing by superzip
-                                        #                  numericInput("threshold", "SuperZIP threshold (top n percentile)", 5)
-                                        # ),
+                                         # Only prompt for threshold when coloring or sizing by superzip
+                                         #                  numericInput("threshold", "SuperZIP threshold (top n percentile)", 5)
+                                         # ),
                                          
-                                        # plotOutput("histCentile", height = 200),
-                                        # plotOutput("scatterCollegeIncome", height = 250)
+                                         # plotOutput("histCentile", height = 200),
+                                         # plotOutput("scatterCollegeIncome", height = 250)
                            )
                            
           )
