@@ -3,6 +3,8 @@ library(shinyjs)
 library(shinydashboard)
 library(DT)
 library(leaflet)
+library(mapview)
+library(leaflet.minicharts)
 
 ##################################################
 # Header
@@ -72,6 +74,8 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           # Introduction
           ##################################################
+          #conditionalPanel("input.sidebarmenu === 'Details'",
+          #),
           
           conditionalPanel("input.sidebarmenu === 'Details'",
                            column(width=6,
@@ -140,8 +144,8 @@ body <- shinydashboard::dashboardBody(
                                              ),
                                              fluidRow(
                                                column(width=4,
-                                                      box(title="Columns",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = T,
-                                                          helpText("Highlight columns (multiple with shift) then assign them to an attribute."),
+                                                      box(title="Columns",width=12,status="primary",collapsible = F,solidHeader = T,collapsed = F,
+                                                          helpText("Highlight columns (multiple with shift) then assign them to an attribute on the right."),
                                                           conditionalPanel(condition="input.rawFormat == 'Wide'",
                                                                            numericInput("rawData_taxarows", label = h5("Rows of column Identifiers"), min=1,value=1)
                                                           ),
@@ -154,7 +158,7 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                column(width=4,
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
-                                                                       box(title="Assign Columns to Attributes", width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                       box(title="Assign Columns", width=NULL,status="success",collapsible = F,solidHeader = T,collapsed = F,
                                                                            column(width=6,
                                                                                   actionButton("raw.siteID.cols", "Site/Sampling Events"),
                                                                                   br(),
@@ -167,12 +171,12 @@ body <- shinydashboard::dashboardBody(
                                                                            column(width=4,
                                                                                   actionButton("raw.siteID.cols.rem", "Undo"),
                                                                                   br(),
-                                                                              actionButton("raw.taxa.cols.rem", "Undo"),
-                                                                              br(),
-                                                                              actionButton("raw.habitat.cols.rem", "Undo"),
-                                                                              br(),
-                                                                              conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
-                                                                       )
+                                                                                  actionButton("raw.taxa.cols.rem", "Undo"),
+                                                                                  br(),
+                                                                                  actionButton("raw.habitat.cols.rem", "Undo"),
+                                                                                  br(),
+                                                                                  conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
+                                                                           )
                                                                        )
                                                       ),
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
@@ -190,6 +194,15 @@ body <- shinydashboard::dashboardBody(
                                                                            hr(),
                                                                            verbatimTextOutput("view.coord.cols")
                                                                        )
+                                                      )
+                                               ),
+                                               column(width=4,
+                                                      conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                                                       box(title="Date Field (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = F,
+                                                                           actionLink("Date_field.help","?"),
+                                                                           uiOutput("time_ID")
+                                                                       )
+                                                                       
                                                       )
                                                )
                                              )
@@ -231,9 +244,18 @@ body <- shinydashboard::dashboardBody(
                                              DT::dataTableOutput("view.habitat"),
                                              br(),
                                              hr(),
-                                             fluidRow(width=12,
-                                                      box()
-                                                      )
+                                             fluidRow(
+                                               box(title="Factor variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
+                                                   uiOutput("dispaly_habitat_factors"),
+                                                   br(),
+                                                   actionButton("habitat_convert_fact_to_numb","Convert to numeric")
+                                               ),
+                                               box(title="Numeric variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
+                                                   uiOutput("dispaly_habitat_numeric"),
+                                                   br(),
+                                                   actionButton("habitat_convert_numb_to_fact","Convert to factor")
+                                               )
+                                             )
                                     ),
                                     tabPanel("Coordinates",
                                              DT::dataTableOutput("view.coords"),
@@ -295,13 +317,17 @@ body <- shinydashboard::dashboardBody(
                            )
           ),
           
+
           ##################################################
           # User Matched Reference Sites
           ##################################################
           
           
           conditionalPanel("input.sidebarmenu === 'userMatchRef'",
-                           h5("User Matched Reference Sites")
+                           h5("User Matched Reference Sites"),
+                           verbatimTextOutput("testout1"),
+                           verbatimTextOutput("testout3"),
+                           DT::dataTableOutput("testout2")
           ),
           
           ##################################################
@@ -310,35 +336,33 @@ body <- shinydashboard::dashboardBody(
           
           
           conditionalPanel("input.sidebarmenu === 'Mapping'",
-                           #h5("Mapping"),
                            leafletOutput("mymap",height = 800),
                            
                            absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
                                          draggable = F, top = 80, left = "auto", right = 40, bottom = "auto",
-                                         width = 330, height = "auto",
-                                         box(title="",width=12,background= "olive",
+                                         width = 250, height = "auto",
+                                         box(title=NULL,width=12,background= "olive",
                                              h3("Controls"),
                                              radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
                                              checkboxInput("map_admin",label="Administrative Boundaries"),
                                              hr(),
-                                             selectInput("map_pointcolgroup", "Color",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
-                                             uiOutput("map_pointcolselect_out")
+                                             selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points","Pie Chart"="pie", "Bar Chart"="bar")),
+                                             hr(),
+                                             conditionalPanel("input.map_pointtype == 'pie' || input.map_pointtype == 'bar'",
+                                                              sliderInput("map_chart_site","Chart Size", min=1,max=100,value=45),
+                                                              uiOutput("out.map_chart_variables"),
+                                                              hr()
+                                                              
+                                             ),
+                                             conditionalPanel("input.map_pointtype == 'Points'",
+                                                              selectInput("map_pointcolgroup", "Colour",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
+                                                              uiOutput("map_pointcolselect_out")
+                                             )
                                          )
-                                         
-                                         #selectInput("size", "Size", vars, selected = "adultpop"),
-                                         #conditionalPanel("input.color == 'superzip' || input.size == 'superzip'",
-                                         # Only prompt for threshold when coloring or sizing by superzip
-                                         #                  numericInput("threshold", "SuperZIP threshold (top n percentile)", 5)
-                                         # ),
-                                         
-                                         # plotOutput("histCentile", height = 200),
-                                         # plotOutput("scatterCollegeIncome", height = 250)
                            )
                            
           )
-          
-          
-          
+
           ##################################################
           # End of Body
           ##################################################

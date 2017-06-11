@@ -6,17 +6,52 @@ library(DT)
 library(leaflet)
 library(sp)
 library(rgdal)
+library(leaflet.minicharts)
+library(colorRamps)
+library(plyr)
+library(dplyr)
 
 options(shiny.maxRequestSize=30*1024^2)
 
 shinyServer(function(input, output, session) {
   
   #########################################################
-  #DATA INPUT
+  #Login
   #########################################################
+  loggedin<-F
+    
+  login.modal<-function(failed=F){
+    modalDialog(
+      size="s",
+      textInput("username","User Name"),
+      textInput("password","Password"),
+      footer = actionButton("login","Login"),
+      easyClose = F,
+      if (failed){
+        div(tags$b("Invalid user name or password", style = "color: red;"))
+      }
+    )
+  }
+  
+  if (loggedin==F){
+    showModal(login.modal())
+  }
+  
+  observeEvent(input$login, {
+    # Check that data object exists and is data frame.
+    if (input$username=="Admin" & input$password=="Admin1867") {
+      removeModal()
+    } else {
+      showModal(login.modal(failed = TRUE))
+      loggedin<-T
+    }
+  })
   
   #########################################################
-  #Raw Data Manipulation
+  #DATA INPUT
+  #########################################################
+  #########################################################
+  #    Raw Data Manipulation
   #########################################################
   
   raw.bio.data<- reactiveValues(data=NULL)
@@ -126,6 +161,14 @@ shinyServer(function(input, output, session) {
                                        ])    
   })
   
+  output$time_ID<-renderUI({
+    validate(
+      need(!is.null(site.ID.cols$data),"")
+    )
+    selectInput(inputId = "time.ID", label="", multiple=F,selectize=T,
+                choices=c("",raw.colnames()[raw.colnames()%in%site.ID.cols$data]))
+  })
+  
   site.ID.cols<-reactiveValues(data=NULL) #Set site ID columns
   observeEvent(input$raw.siteID.cols,{
     site.ID.cols$data<-input$widetaxacols1
@@ -224,10 +267,10 @@ shinyServer(function(input, output, session) {
   outputOptions(output, 'show_mets2', suspendWhenHidden=FALSE)
   
   #########################################################
-  #When Raw Data are finalized
+  #    When Raw Data are finalized
   #########################################################
   
-  taxa.by.site<-reactiveValues(data=NULL) #calculate taxa by site table
+  taxa.by.site<-reactiveValues(data=NULL,data.alt.colnames=NULL) #calculate taxa by site table
   observeEvent(input$finalize_raw,{
     if (T){
       isolate(
@@ -266,7 +309,13 @@ shinyServer(function(input, output, session) {
           output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
         }
       )
+      output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
+      rownames(output)<-site.names[!duplicated(site.names)]
+      colnames(output)<-gsub(".",";",colnames(output),fixed=T)
       taxa.by.site$data<-output
+      
+      taxa.by.site$data.alt.colnames<-output
+      colnames(taxa.by.site$data.alt.colnames)<-gsub(";",".",colnames(output),fixed=T)
     }
   })
   output$view.taxa<-renderDataTable({#Renders raw data table
@@ -274,6 +323,48 @@ shinyServer(function(input, output, session) {
                   options=list(pageLength = 5,scrollX=T))
   })
   
+  missing.sampling.events<-reactiveValues(full.data=NULL,rnames=NULL) #if a time field is specified, find missing sampling events
+  
+  observeEvent(input$finalize_raw,{
+    validate(
+      need(input$time.ID!="","")
+    )
+    isolate(
+      if (input$time.ID!="") {
+        orig.ID<-rownames(taxa.by.site$data)
+        orig.ID<-data.frame(do.call(rbind,strsplit(as.character(orig.ID),";")))
+        colnames(orig.ID)<-site.ID.cols$data
+        orig.ID[,input$time.ID]<-as.numeric(as.character(orig.ID[,input$time.ID]))
+        
+        non.time.ID<-as.factor(orig.ID[,!colnames(orig.ID)%in%input$time.ID])
+        if (length(which(!colnames(orig.ID)%in%input$time.ID))>1){
+          non.time.ID<-apply(non.time.ID,1,paste0,collapse="",sep=";")
+          non.time.ID<-as.factor(substr(non.time.ID,start=1,stop=(nchar(non.time.ID)-1)))
+        }
+        
+        time.range<-min(orig.ID[,input$time.ID]):max(orig.ID[,input$time.ID])
+        
+        expanded.ID<-expand.grid(X1=levels(non.time.ID),X2=time.range)
+        
+        expanded.ID1<-data.frame(cbind(do.call(rbind,strsplit(as.character(expanded.ID$X1),";")),expanded.ID[,-c(1)]))
+        colnames(expanded.ID1)<-c(site.ID.cols$data[!site.ID.cols$data%in%input$time.ID],input$time.ID)
+        expanded.ID1<-expanded.ID1[,site.ID.cols$data]
+        
+        orig.ID$missing<-T
+        
+        missing.samples<-merge(orig.ID,expanded.ID1,all=T)
+        missing.samples<-missing.samples[is.na(missing.samples$missing),!colnames(missing.samples)%in%"missing"]
+        
+        rnames<-apply(missing.samples,1,paste0,collapse="",sep=";")
+        rnames<-substr(rnames,start=1,stop=(nchar(rnames)-1))
+        
+        missing.sampling.events$full.data<-missing.samples
+        missing.sampling.events$rnames<-rnames
+        #coordinates.by.site$data.all<-plyr::rbind.fill(coordinates.by.site$data.all,missing.events)
+      }
+    )
+  })
+
   habitat.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
   observeEvent(input$finalize_raw,{
     if (!is.null(habitat.ID.cols$data)){
@@ -305,6 +396,8 @@ shinyServer(function(input, output, session) {
           colnames(output)<-habitat.ID.cols$data
         }
       )
+      output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
+      rownames(output)<-site.names[!duplicated(site.names)]
       habitat.by.site$data<-output
     }
   })
@@ -331,7 +424,9 @@ shinyServer(function(input, output, session) {
                                       raw.colnames()%in%coord.ID.cols$espg]
           output<-data.frame(apply(output,2,as.numeric))
           rownames(output)<-site.names
-          colnames(output)<-c("east","north","epsg")
+          output<-data.frame(apply(output,2,as.numeric))
+          output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
+          colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
         }
       )
       isolate(
@@ -350,7 +445,8 @@ shinyServer(function(input, output, session) {
           rownames(output)<-site.names[!duplicated(site.names)]
           colnames(output)<-c("east","north","epsg")
           output<-data.frame(apply(output,2,as.numeric))
-          
+          output<-cbind(do.call(rbind,strsplit(site.names[!duplicated(site.names)],";")),output)
+          colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
         }
       )
       validate(
@@ -395,7 +491,7 @@ shinyServer(function(input, output, session) {
         }
       }
 
-      coordinates.by.site$data.unique<-unique(output)
+      coordinates.by.site$data.unique<-unique(output[,c("east","north","epsg")])
       rownames(coordinates.by.site$data.unique)<-unique(gis.site.id)
       coordinates.by.site$gis.site.id<-gis.site.id
       coordinates.by.site$data.all<-output
@@ -407,12 +503,14 @@ shinyServer(function(input, output, session) {
                   options=list(pageLength = 5,scrollX=T))
   })
   
-  
   #########################################################
-  #Calculate Summary Metrics
+  #    Calculate Summary Metrics
   #########################################################
   
   bio.data<-reactiveValues(data=NULL)
+  
+  feeding.data<-reactiveValues(data=NULL,data.reduced=NULL)
+  habitat.data<-reactiveValues(data=NULL)
   
   observeEvent(input$calculate_metrics,{
     isolate(
@@ -438,19 +536,48 @@ shinyServer(function(input, output, session) {
     )
   })
   
+  observeEvent({input$calculate_metrics},{
+    isolate(
+      if(input$metdata==F){
+        feeding.data$data<-aggregate(t(taxa.by.site$data),by=list(bio.data$data$Attributes$Feeding),FUN=sum)
+        row.names(feeding.data$data)<-feeding.data$data[,"Group.1"]
+        feeding.data$data<-subset(feeding.data$data,select=-c(Group.1))
+        feeding.data$data<-t(feeding.data$data)
+        colnames(feeding.data$data)<-gsub("COLLECTOR-","",colnames(feeding.data$data))
+        
+        feeding.data$data.reduced<-data.frame("FILTERER"=rowSums(subset(feeding.data$data,select=grepl("FILTERER",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "GATHERER"=rowSums(subset(feeding.data$data,select=grepl("GATHERER",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "PREDATOR"=rowSums(subset(feeding.data$data,select=grepl("PREDATOR",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "SCRAPER/GRAZER"=rowSums(subset(feeding.data$data,select=grepl("SCRAPER/GRAZER",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "PARASITE"=rowSums(subset(feeding.data$data,select=grepl("PARASITE",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "PIERCER HERBIVORE"=rowSums(subset(feeding.data$data,select=grepl("PIERCER HERBIVORE",strsplit(colnames(feeding.data$data),"-"))),na.rm=T),
+                                              "SHREDDER"=rowSums(subset(feeding.data$data,select=grepl("SHREDDER",strsplit(colnames(feeding.data$data),"-"))),na.rm=T))
+        row.names(feeding.data$data.reduced)<-row.names(feeding.data$data)
+
+        habitat.data$data<-aggregate(t(taxa.by.site$data),by=list(bio.data$data$Attributes$Habitat),FUN=sum)
+        row.names(habitat.data$data)<-habitat.data$data[,"Group.1"]
+        habitat.data$data<-subset(habitat.data$data,select=-c(Group.1))
+        habitat.data$data<-t(habitat.data$data)
+      }
+    )
+  })
+  
+  
+  
+  
   output$view.metrics.raw<-renderDataTable(
     DT::datatable(bio.data$data$Summary.Metrics, options=list(pageLength = 5,scrollX=T))
   )
   output$download_raw_mets<-downloadHandler(filename = function() { paste("Metrics-",input$inrawbioFile, sep='') },
-                                            content = function(file) {write.csv(bio.data$data$Summary.Metrics,file,row.names = F)})
+                                            content = function(file) {write.csv(bio.data$data$Summary.Metrics,file,row.names = T)})
   output$download_raw_taxa<-downloadHandler(filename = function() { paste("Taxa-",input$inrawbioFile, sep='') },
-                                            content = function(file) {write.csv(taxa.by.site$data,file,row.names = F)})
+                                            content = function(file) {write.csv(taxa.by.site$data,file,row.names = T)})
   output$download_taxa_atts<-downloadHandler(filename = function() { paste("Attributes-",input$inrawbioFile, sep='') },
-                                             content = function(file) {write.csv(bio.data$data$Attributes,file,row.names = F)})
+                                             content = function(file) {write.csv(bio.data$data$Attributes,file,row.names = T)})
   
   
   #########################################################
-  #Metric Transformations
+  #    Metric Transformations
   #########################################################
   output$out_trans_selected<-renderUI({
     radioButtons("trans", label = "",
@@ -611,14 +738,97 @@ shinyServer(function(input, output, session) {
   )
   
   #########################################################
-  #Habitat Variable structure
+  #    Habitat Transformations
   #########################################################
   
+  output$dispaly_habitat_factors<-renderUI({
+    validate(
+      need(any(sapply(habitat.by.site$data,is.factor)),"No variables recognized as factors")
+    )
+    selectInput(inputId="habitat.factors.selected", label=h5('Select variables to change'), multiple = T,selectize=F,selected = "",
+                choices=colnames(habitat.by.site$data)[sapply(habitat.by.site$data,is.factor)])
+    
+  })
   
+  output$dispaly_habitat_numeric<-renderUI({
+    validate(
+      need(any(sapply(habitat.by.site$data,function(x)is.numeric(x)|is.factor(x))),"No variables recognized as numeric")
+    )
+    selectInput(inputId="habitat.numeric.selected", label=h5('Select variables to change'), multiple = T,selectize=F,selected = "",
+                choices=colnames(habitat.by.site$data)[sapply(habitat.by.site$data,is.numeric)|sapply(habitat.by.site$data,is.integer)])
+    
+  })
+  
+  observeEvent(input$habitat_convert_fact_to_numb,{
+    t1<-try(sapply(habitat.by.site$data[,input$habitat.factors.selected],as.numeric),silent=T)
+    if (class(t1)=="try-error") {
+      showModal(
+        modalDialog(
+          size="s",
+          helpText("Unable to convert selected variables"),
+          hr(),
+          footer = modalButton("Dismiss"),
+          easyClose = TRUE
+        )
+      )
+    } else {
+      habitat.by.site$data[,input$habitat.factors.selected]<-sapply(habitat.by.site$data[,input$habitat.factors.selected],as.numeric)
+    } 
+  })
+  
+  observeEvent(input$habitat_convert_numb_to_fact,{
+    t1<-try(sapply(habitat.by.site$data[,input$habitat.numeric.selected],as.factor),silent=T)
+    if (class(t1)=="try-error") {
+      showModal(
+        modalDialog(
+          size="l",
+          helpText("Unable to convert selected variables"),
+          hr(),
+          footer = modalButton("Dismiss"),
+          easyClose = TRUE
+        )
+      )
+    } else {
+      habitat.by.site$data[,input$habitat.numeric.selected]<-sapply(habitat.by.site$data[,input$habitat.numeric.selected],as.factor)
+    }
+  })
+  
+  #########################################################
+  #    Combine all available data into 1 dataset
+  #########################################################
+  
+  all.data<-reactiveValues(data=NULL)
+  
+  observeEvent({
+    input$finalize_raw
+    input$calculate_metrics
+  },{
+    all.data$data<-taxa.by.site$data.alt.colnames
+    
+    if(input$metdata==F & !is.null(bio.data$data$Summary.Metrics)){
+      all.data$data<-data.frame(cbind(all.data$data,bio.data$data$Summary.Metrics,feeding.data$data.reduced,habitat.data$data))
+    }
+    
+    if(!is.null(habitat.by.site$data)){
+      all.data$data<-data.frame(cbind(all.data$data,habitat.by.site$data))
+    }
+    
+    if(!is.null(coordinates.by.site$data.all)){
+      all.data$data <- data.frame(cbind(all.data$data,coordinates.by.site$data.all))
+    }
+    
+    if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
+      all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
+      missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
+      all.data$data$east[is.na(all.data$data$east)]<-coordinates.by.site$data.unique$east[match(missing.sites,rownames(coordinates.by.site$data.unique))]
+      all.data$data$north[is.na(all.data$data$north)]<-coordinates.by.site$data.unique$north[match(missing.sites,rownames(coordinates.by.site$data.unique))]
+    }
+  })
+
   #########################################################
   #Mapping
   #########################################################
-  
+
   output$map_pointcolselect_out<-renderUI({
     validate(
       need(input$map_pointcolgroup!="None","")
@@ -643,6 +853,19 @@ shinyServer(function(input, output, session) {
       vars<-colnames(bio.data$data$Summary.Metrics)
     }
     selectInput("map_pointcolselect_in",label="Attribute",choices=vars)
+  })
+  
+  output$out.map_chart_variables<-renderUI({
+    #validate(
+    #  need(!is.null(all.data$data),"")
+    #)
+    selectInput("in.map_chart_variables",label="Chart Variables",choices=list(
+      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+      Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+      Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)]
+    ),multiple = TRUE)
   })
   
   map_icons<-reactiveValues(data=NULL)
@@ -672,20 +895,108 @@ shinyServer(function(input, output, session) {
       m<-addProviderTiles(map=m,
                           provider=providers$OpenMapSurfer.AdminBounds)
     }
-    m <- addMarkers(map=m,
-                    lng=coordinates.by.site$data.unique$east,
-                    lat=coordinates.by.site$data.unique$north,
-                    label=rownames(coordinates.by.site$data.unique))
+    
+    if (input$map_pointtype=="pie"|input$map_pointtype=="bar"){
+      m<-addMinicharts(
+        map = m,
+        lng=all.data$data$east,
+        lat=all.data$data$north,
+        layerId=all.data$data[,colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID],
+        width = input$map_chart_site,
+        height = input$map_chart_site,
+        #maxValues<-aggregate(feeding.data$data.reduced,by=list(coordinates.by.site$data.all[,input$time.ID]),max),
+        type=input$map_pointtype,
+        chartdata=all.data$data[,colnames(all.data$data)%in%input$in.map_chart_variables],
+        time=all.data$data[,input$time.ID],
+        showLabels = T,
+        legendPosition = "bottomleft"#,
+        #colorPalette=colorRamps::primary.colors(ncol(data[colnames(data)%in%colnames(feeding.data$data.reduced)]))
+      )
+    }
+    
+    if (input$map_pointtype=="Points"){
+      m <- addMarkers(map=m,
+                      lng=coordinates.by.site$data.unique$east,
+                      lat=coordinates.by.site$data.unique$north,
+                      label=rownames(coordinates.by.site$data.unique)
+      )
+    }
+    
     m
     })
+  #########################################################
+  #    Map markers
+  #########################################################
+  
+  #observe({
+  #  if (input$map_pointtype=="pie"|input$map_pointtype=="bar") {
+  #    data <- data.frame(cbind(coordinates.by.site$data.all,feeding.data$data.reduced))
+  #    data <- data.frame(merge(data,missing.sampling.events$full.data,all=T))
+  ##    
+  #    leafletProxy("mymap", session) %>%
+  #      updateMinicharts(
+  #        layerId=data[,(colnames(coordinates.by.site$data.all)%in%site.ID.cols$data & !colnames(coordinates.by.site$data.all)%in%input$time.ID)],
+  #        chartdata = data[,colnames(data)%in%colnames(feeding.data$data.reduced)],
+  #        #maxValues = maxValue,
+  #        time = data[,colnames(data)%in%input$time.ID],
+  ##        type = "pie",
+  #        showLabels = T,
+  #        legendPosition = "bottomleft"
+  #      )
+      
+  #  } 
+    
+    #maxValue <- max(as.matrix(data))
+    
+  #})
+  #pie.charts <- pie(, data = meuse@data)
+  #p <- mget(rep("p", length(meuse)))
+  
+  #pie.charts <- lapply(1:length(p), function(i) {
+  #  clr[i] <- "red"
+  #  update(p[[i]], col = clr)
+  #})
+  
   
   #########################################################
   #Hold
   #########################################################
+  output$testout1<-renderPrint({
+    list(
+      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+      Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+      Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)]
+    )
+    #all.data$data
+  })
+  
+  output$testout3<-renderPrint({
+    colnames(taxa.by.site$data.alt.colnames)
+  })
+  output$testout4<-renderPrint({
+    colnames(all.data$data)
+  })
+  
+  
+  output$testout2<-renderDataTable({
+    DT::datatable(all.data$data[,], options=list(pageLength = 10,scrollX=T))
+  })
   
   #########################################################
-  #Help Texts
+  #Help Texts - raw data input
   #########################################################
+  
+  observeEvent(input$Date_field.help,{
+    showModal(modalDialog(
+      size="s",
+      helpText("One column assigned to 'Site/Sampling' Event may be used to indicate the temporal sequence of sampling events. This field should be numeric."),
+      footer = modalButton("Dismiss"),
+      easyClose = TRUE
+    )
+    )
+  })
   
   #Raw Data input
   observeEvent(input$raw.help, {
@@ -825,6 +1136,7 @@ shinyServer(function(input, output, session) {
                                            content = function(file) {write.csv(read.csv("Wide_example1.csv",header=T),file,row.names = F)})
   output$download_ex_wide2<-downloadHandler(filename = function() { paste("Wide_example2.csv") },
                                            content = function(file) {write.csv(read.csv("Wide_example2.csv",header=T),file,row.names = F)})
+  
   
   #Raw Data input
   
