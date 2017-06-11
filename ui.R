@@ -3,7 +3,7 @@ library(shinyjs)
 library(shinydashboard)
 library(DT)
 library(leaflet)
-library(mapview)
+#library(mapview)
 library(leaflet.minicharts)
 
 ##################################################

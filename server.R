@@ -10,6 +10,8 @@ library(leaflet.minicharts)
 library(colorRamps)
 library(plyr)
 library(dplyr)
+#library(mapview)
+library(leaflet.minicharts)
 
 options(shiny.maxRequestSize=30*1024^2)
 
@@ -24,7 +26,7 @@ shinyServer(function(input, output, session) {
     modalDialog(
       size="s",
       textInput("username","User Name"),
-      textInput("password","Password"),
+      passwordInput("password","Password"),
       footer = actionButton("login","Login"),
       easyClose = F,
       if (failed){
