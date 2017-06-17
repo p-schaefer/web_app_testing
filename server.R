@@ -10,7 +10,7 @@ library(leaflet.minicharts)
 library(colorRamps)
 library(plyr)
 library(dplyr)
-#library(mapview)
+library(ggplot2)
 library(leaflet.minicharts)
 
 options(shiny.maxRequestSize=30*1024^2)
@@ -126,7 +126,7 @@ shinyServer(function(input, output, session) {
                                        ])    
   })
   output$test.vs.ref = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
-    selectInput(inputId="raw.testrefcols", label=h5('TEST or REF Site'), multiple = F,selectize=T,selected = "",
+    selectInput(inputId="raw.testrefcols", label=h5('Test(1) or Reference(0) Site'), multiple = F,selectize=T,selected = "",
                 choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%habitat.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
@@ -505,6 +505,43 @@ shinyServer(function(input, output, session) {
                   options=list(pageLength = 5,scrollX=T))
   })
   
+  reftest.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
+  observeEvent(input$finalize_raw,{
+    if (!is.null(reftest.ID.cols$data)){
+      isolate(
+        if (input$rawFormat=="Wide"){
+          if (length(site.ID.cols$data)==1){
+            site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
+          } else {
+            site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+          }
+          output<-data.frame(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])
+          rownames(output)<-site.names
+          colnames(output)<-reftest.ID.cols$data
+        }
+      )
+      isolate(
+        if (input$rawFormat=="Long") {
+          if (length(site.ID.cols$data)==1){
+            site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
+          } else {
+            site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+          }
+          
+          output<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%reftest.ID.cols$data])
+          output<-output[!duplicated(site.names),]
+          rownames(output)<-site.names[!duplicated(site.names)]
+          colnames(output)<-reftest.ID.cols$data
+        }
+      )
+      output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
+      rownames(output)<-site.names[!duplicated(site.names)]
+      reftest.by.site$data<-output
+    }
+  })
+  
   #########################################################
   #    Calculate Summary Metrics
   #########################################################
@@ -747,7 +784,7 @@ shinyServer(function(input, output, session) {
     validate(
       need(any(sapply(habitat.by.site$data,is.factor)),"No variables recognized as factors")
     )
-    selectInput(inputId="habitat.factors.selected", label=h5('Select variables to change'), multiple = T,selectize=F,selected = "",
+    selectInput(inputId="habitat.factors.selected", label=h5('Select variables to change'), multiple = F,size=10,selectize=F,selected = "",
                 choices=colnames(habitat.by.site$data)[sapply(habitat.by.site$data,is.factor)])
     
   })
@@ -756,7 +793,7 @@ shinyServer(function(input, output, session) {
     validate(
       need(any(sapply(habitat.by.site$data,function(x)is.numeric(x)|is.factor(x))),"No variables recognized as numeric")
     )
-    selectInput(inputId="habitat.numeric.selected", label=h5('Select variables to change'), multiple = T,selectize=F,selected = "",
+    selectInput(inputId="habitat.numeric.selected", label=h5('Select variables to change'), multiple = F,size=10,selectize=F,selected = "",
                 choices=colnames(habitat.by.site$data)[sapply(habitat.by.site$data,is.numeric)|sapply(habitat.by.site$data,is.integer)])
     
   })
@@ -802,8 +839,7 @@ shinyServer(function(input, output, session) {
   all.data<-reactiveValues(data=NULL)
   
   observeEvent({
-    input$finalize_raw
-    input$calculate_metrics
+    input$finalize_raw|input$calculate_metrics
   },{
     all.data$data<-taxa.by.site$data.alt.colnames
     
@@ -819,14 +855,155 @@ shinyServer(function(input, output, session) {
       all.data$data <- data.frame(cbind(all.data$data,coordinates.by.site$data.all))
     }
     
+    if (!is.null(reftest.by.site$data)){
+      all.data$data <- data.frame(cbind(all.data$data,reftest.by.site$data))
+    }
+
     if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
       all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
       missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
       all.data$data$east[is.na(all.data$data$east)]<-coordinates.by.site$data.unique$east[match(missing.sites,rownames(coordinates.by.site$data.unique))]
       all.data$data$north[is.na(all.data$data$north)]<-coordinates.by.site$data.unique$north[match(missing.sites,rownames(coordinates.by.site$data.unique))]
     }
+    
   })
 
+  #########################################################
+  #NN Site Matching + Metric Selection
+  #########################################################
+  output$out_test.site.select<-renderUI({
+    validate(need(!is.null(reftest.ID.cols$data),""))
+    selectInput("in_test_site_select","",selected="None",
+                choices=c("None",rownames(all.data$data)[reftest.by.site$data==0])
+                )
+  })
+  
+  output$out_metric.select<-renderUI({
+    validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
+    selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
+                choices=colnames(bio.data$data$Summary.Metrics)
+    )
+  })
+
+  nn.sites<-reactiveValues(data=NULL)
+  observeEvent(c(
+    input$in_test_site_select,
+    input$nn.k,
+    input$nn_useDD,
+    input$nn.factor,
+    input$nn.constant,
+    input$nn_method,
+    input$in_metric.select
+  ),{
+    validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+    validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA",""))
+    if (input$nn_method=="RDA-ANNA"){
+      validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
+    }
+    
+    nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],
+                                                        Reference=habitat.by.site$data[reftest.by.site$data==1,],
+                                                        k=if (is.numeric(input$nn.k)){input$nn.k} else {NULL},
+                                                        distance.decay=input$nn_useDD,
+                                                        dd.factor=input$nn.factor,
+                                                        dd.constant=input$nn.constant,
+                                                        RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
+                                                        scale=T)
+  })
+  
+  output$out_nn.axis1<-renderUI({
+    selectInput("in_nn.axis1","X Axis", choices=colnames(nn.sites$data$env.ordination.scores),
+                selected=colnames(nn.sites$data$env.ordination.scores)[1])
+  })
+  output$out_nn.axis2<-renderUI({
+    selectInput("in_nn.axis2","Y Axis", choices=colnames(nn.sites$data$env.ordination.scores),
+                selected=colnames(nn.sites$data$env.ordination.scores)[2])
+  })
+  
+  output$nn.ord<-renderPlot({
+    validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+    validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+    if (input$in_test_site_select!="None"){
+      hull<-nn.sites$data$ordination.scores[reftest.by.site$data==1,]
+      hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
+      hull<-hull[hull$Ref==T,]
+      hull<-hull[chull(hull[,1:nn.sites$data$sig.axis]),]
+      
+      test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_test_site_select,]
+      
+      reference.sites<-nn.sites$data$ordination.scores[reftest.by.site$data==1,]
+      reference.sites$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
+      reference.sites<-reference.sites[reference.sites$Ref==T,]
+    }
+    
+    if (input$nn_method=="User Selected"){
+      return(NULL)
+    }
+    if (input$nn_method=="RDA-ANNA"){
+      validate(need(!is.null(input$in_metric.select),"Select indicator metrics first"))
+      validate(need(length(input$in_metric.select)>=3,"Select more than 3 indicator metrics"))
+    }
+    
+    p1 <- ggplot(data=nn.sites$data$ordination.scores,aes(x=get(input$in_nn.axis1), y=get(input$in_nn.axis2))) + 
+      geom_point(aes(color=Class))  + theme_bw() + 
+      labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method),
+           subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {""}) +
+      xlab(paste0(input$in_nn.axis1)) + 
+      ylab(paste0(input$in_nn.axis2))
+
+    if (input$nnplot.hab.points){
+      p1<- p1 + geom_point(data=data.frame(nn.sites$data$env.ordination.scores)[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
+    }
+    
+    if (input$nnplot.hab.names){
+      p1<- p1 + geom_text(data=data.frame(nn.sites$data$env.ordination.scores)[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
+      
+    }
+    
+    if (input$in_test_site_select!="None"){
+      if (input$nnplot.hull){
+        p1<- p1 + geom_polygon(data=hull[,c(input$in_nn.axis1,input$in_nn.axis2)],alpha=0.5)
+      }
+      if (input$nnplot.refnames){
+        p1<- p1 + geom_text(data=reference.sites[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(reference.sites))
+      }
+      if (input$nnplot.testsite){
+        p1<- p1 + geom_point(data=test.site[,c(input$in_nn.axis1,input$in_nn.axis2)],size=3)
+      }
+    }
+    p1
+  })
+  
+  output$nn.dist<-renderPlot({
+    validate(need(input$in_test_site_select!="None",""))
+    
+    if (input$in_test_site_select!="None"){
+      distances<-nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_test_site_select,]
+      distances<-distances[order(distances)]
+      distances<-data.frame(distances)
+      nn.distances<-as.numeric(nn.sites$data$dd.number$dd.number[nn.sites$data$dd.number$sites%in%input$in_test_site_select])
+      distances$Selected<-NA
+      distances$Selected[1:nn.distances]<-"Yes"
+      distances$Selected[(nn.distances+1):nrow(distances)]<-"No"
+      colnames(distances)[1]<-"Distance"
+      
+      p2<-ggplot()+geom_bar(data=distances,aes(y=Distance, x=1:nrow(distances), fill=Selected, color=Selected), stat="identity")+theme_bw()+
+        labs(title=paste0("Nearest-neighbour Distances by ",input$nn_method),
+             subtitle=paste0(input$in_test_site_select)) +
+        xlab("Distance") + 
+        ylab("")
+      
+      p2
+      
+    }
+  })
+  
+
+
+  #########################################################
+  #TSA
+  #########################################################
+  
   #########################################################
   #Mapping
   #########################################################
@@ -969,7 +1146,8 @@ shinyServer(function(input, output, session) {
       Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
       Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
       Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
-      Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)]
+      Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)]#,
+      #Test=data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test.site.select,]))
     )
     #all.data$data
   })

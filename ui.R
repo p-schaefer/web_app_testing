@@ -3,7 +3,7 @@ library(shinyjs)
 library(shinydashboard)
 library(DT)
 library(leaflet)
-#library(mapview)
+library(ggplot2)
 library(leaflet.minicharts)
 
 ##################################################
@@ -26,8 +26,8 @@ header <- shinydashboard::dashboardHeader(
 sidebar <- shinydashboard::dashboardSidebar(
   sidebarMenu(id = "sidebarmenu",
               useShinyjs(),
-              menuItem("Introduction", tabName = "introduction", icon = icon("list-alt"),
-                       menuSubItem("Details",tabName = "Details")
+              menuItem("Introduction", tabName = "introduction", icon = icon("list-alt")#,
+                       #menuSubItem("Details",tabName = "Details")
               ),
               menuItem("Data Input", icon = icon("th"), tabName = "datainput",
                        menuSubItem("Raw Data upload",tabName = "rawdatainput",icon=NULL),
@@ -44,20 +44,17 @@ sidebar <- shinydashboard::dashboardSidebar(
                        menuSubItem("Metric Transformations",tabName = "transSummaryMetrics",icon=NULL),
                        menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL)
               ),
-              menuItem("Mapping",tabName="Mapping", icon=icon("map")#, 
-                       #menuSubItem("Setup",tabName = "Mappingsetup",icon=NULL),
-                       #conditionalPanel("input.sidebarmenu === 'Mappingsetup'",
-                       #                  h5("Mapping options")
-                       # )
+              menuItem("Mapping",tabName="Mapping", icon=icon("map")
               ),
               menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
-                       menuSubItem("Setup",tabName = "eaxplorationSetup",icon=NULL)
+                       menuSubItem("Setup",tabName = "explorationSetup",icon=NULL)
               ),
-              menuItem("RCA Single",tabname="RCA_single",icon=icon("gear"),
-                       menuSubItem("Setup",tabName = "RCA_singleSetup",icon=NULL)
-              ),
-              menuItem("RCA Batch",tabname="RCA_batch",icon=icon("gears"),
-                       menuSubItem("Setup",tabName = "RCA_batchSetup",icon=NULL)
+              menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
+                       menuSubItem("NN and TSA",tabName="RCA_sub",icon=NULL),
+                       conditionalPanel("input.sidebarmenu === 'RCA_sub'",
+                                        uiOutput("out_test.site.select")
+                       )
+                       
               ),
               menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
                        menuSubItem("Setup",tabName = "TrendsSetup",icon=NULL)
@@ -77,7 +74,7 @@ body <- shinydashboard::dashboardBody(
           #conditionalPanel("input.sidebarmenu === 'Details'",
           #),
           
-          conditionalPanel("input.sidebarmenu === 'Details'",
+          conditionalPanel("input.sidebarmenu === 'introduction'",
                            column(width=6,
                                   box(title=h3("Online tool for analysis of aquatic biomonitoring data"),width=12,status="info",collapsible = F, collapsed = F,solidHeader = F,
                                       h4("UNDER HEAVY DEVELOPMENT"),
@@ -325,6 +322,7 @@ body <- shinydashboard::dashboardBody(
           
           conditionalPanel("input.sidebarmenu === 'userMatchRef'",
                            h5("User Matched Reference Sites"),
+                           helpText("In Development"),
                            verbatimTextOutput("testout1"),
                            verbatimTextOutput("testout3"),
                            DT::dataTableOutput("testout2")
@@ -333,8 +331,6 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           # Mapping
           ##################################################
-          
-          
           conditionalPanel("input.sidebarmenu === 'Mapping'",
                            leafletOutput("mymap",height = 800),
                            
@@ -361,8 +357,78 @@ body <- shinydashboard::dashboardBody(
                                          )
                            )
                            
-          )
+          ),
 
+          ##################################################
+          # RCA
+          ##################################################
+          conditionalPanel("input.sidebarmenu === 'RCA_sub'",
+                           h3("Integrity Assessment by Reference Condition Approach"),
+                           tabBox("RCA",width=12,
+                                  tabPanel(h4("Site Matching"),
+                                           fluidRow(
+                                             column(width=8,
+                                                    fluidRow(
+                                                      column(width=8,
+                                                             plotOutput("nn.ord")
+                                                      ),
+                                                      column(width=4,
+                                                             box(width=12,
+                                                                 uiOutput("out_nn.axis1"),
+                                                                 uiOutput("out_nn.axis2"),
+                                                                 checkboxInput("nnplot.hab.points","Show Habitat variables"),
+                                                                 checkboxInput("nnplot.hab.names","Show Habitat variables"),
+                                                                 conditionalPanel("input.nn_method=='RDA-ANNA'",
+                                                                                  checkboxInput("nnplot.metric","Show Metric Vectors")
+                                                                 )
+                                                             ),
+                                                             hr(),
+                                                             box(width=12,
+                                                                 conditionalPanel("input.in_test_site_select!='None'",
+                                                                                  checkboxInput("nnplot.hull","Show Convex Hull"),
+                                                                                  checkboxInput("nnplot.refnames","Show Reference Site Names"),
+                                                                                  checkboxInput("nnplot.testsite","Show Test Site")
+                                                                 )
+                                                             )
+                                                      )
+                                                    )
+                                             ),
+                                             column(width=4,
+                                                    box(title="Metrics",width=12,
+                                                        conditionalPanel("input.nn_method=='ANNA'",
+                                                                         checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
+                                                        ),
+                                                        uiOutput("out_metric.select")
+                                                    )
+                                             )
+                                           ),
+                                           fluidRow(
+                                             column(width=10,
+                                                    column(width=3,
+                                                           selectInput("nn_method","NN Method", multiple=F,selectize=F,
+                                                                       choices=c("ANNA","RDA-ANNA","User Selected")),
+                                                           numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1)
+                                                    ),
+                                                    column(width=3,
+                                                           conditionalPanel("input.nn_method!='User Selected'",
+                                                                            box(title="Distance-Decay Site Selection",width=12,
+                                                                                checkboxInput("nn_useDD","Use Distance-Decay Site Selection", value=T),
+                                                                                numericInput("nn.factor","Distance Decay factor", value = 2),
+                                                                                numericInput("nn.constant","Distance Decay constant", value = 1)
+                                                                            )
+                                                           )
+                                                    ),
+                                                    column(width=6,
+                                                           plotOutput("nn.dist")
+                                                    )
+                                             )
+                                           )
+                                  ),
+                                  tabPanel(h4("Test Site Analysis"))
+                                  
+                           )
+          )
+          
           ##################################################
           # End of Body
           ##################################################
