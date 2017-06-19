@@ -177,29 +177,24 @@ body <- shinydashboard::dashboardBody(
                                                                        )
                                                       ),
                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                                                       box(title="Date/Time Field (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                           actionLink("Date_field.help",h4("?")),
+                                                                           uiOutput("time_ID")
+                                                                       ),
                                                                        box(title="Test vs. Reference (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
-                                                                           uiOutput("test.vs.ref"),
-                                                                           actionButton("raw.testref.cols", "Finalize Test and Reference Sites"),
-                                                                           actionButton("raw.testref.cols.rem", "Undo")
+                                                                           uiOutput("test.vs.ref")#,
+                                                                           #actionButton("raw.testref.cols", "Finalize Test and Reference Sites"),
+                                                                           #actionButton("raw.testref.cols.rem", "Undo")
                                                                        ),
                                                                        box(title="Coordinates (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
                                                                            uiOutput("eastingCols"),
                                                                            uiOutput("northingCols"),
-                                                                           uiOutput("ESPGCols"),
-                                                                           actionButton("raw.coord.cols", "Finalize Coordinates"),
-                                                                           actionButton("raw.coord.cols.rem", "Undo"),
-                                                                           hr(),
-                                                                           verbatimTextOutput("view.coord.cols")
+                                                                           uiOutput("ESPGCols")#,
+                                                                           #actionButton("raw.coord.cols", "Finalize Coordinates"),
+                                                                           #actionButton("raw.coord.cols.rem", "Undo"),
+                                                                           #hr(),
+                                                                           #verbatimTextOutput("view.coord.cols")
                                                                        )
-                                                      )
-                                               ),
-                                               column(width=4,
-                                                      conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
-                                                                       box(title="Date Field (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = F,
-                                                                           actionLink("Date_field.help","?"),
-                                                                           uiOutput("time_ID")
-                                                                       )
-                                                                       
                                                       )
                                                )
                                              )
@@ -208,30 +203,21 @@ body <- shinydashboard::dashboardBody(
                                     tabPanel("Taxa",
                                              useShinyjs(),
                                              conditionalPanel(condition="input.metdata == false && input.finalize_raw>0 && output.show_mets == true",
-                                                              DT::dataTableOutput("view.taxa"),
-                                                              br(),
+                                                              box(title="Taxa",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                  DT::dataTableOutput("view.taxa")
+                                                              ),
+                                                              box(title="Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                  DT::dataTableOutput("view.metrics.raw")
+                                                              ),
                                                               br(),
                                                               fluidRow(
-                                                                column(width=4,
-                                                                       box(title="Calculate Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                           actionButton("calculate_metrics","Calculate Summary Metrics"),
-                                                                           br(),
+                                                                column(width=3,
+                                                                       box(title="Download Data",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
                                                                            conditionalPanel(condition="input.metdata == false",
-                                                                                            downloadButton("download_raw_taxa","Download Taxa Table")
-                                                                           ),
-                                                                           conditionalPanel(condition="input.metdata == false && input.calculate_metrics>0 && output.show_mets2 == true",
+                                                                                            downloadButton("download_raw_taxa","Download Taxa Table"),
                                                                                             downloadButton("download_raw_mets","Download Summary Metrics"),
                                                                                             downloadButton("download_taxa_atts","Download Taxa Attributes")
                                                                            )
-                                                                       )
-                                                                )
-                                                              )
-                                             ),
-                                             conditionalPanel(condition="output.show_mets == true",
-                                                              fluidRow(
-                                                                column(width=12,
-                                                                       box(title="Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = T,
-                                                                           DT::dataTableOutput("view.metrics.raw")
                                                                        )
                                                                 )
                                                               )
@@ -322,7 +308,7 @@ body <- shinydashboard::dashboardBody(
           
           conditionalPanel("input.sidebarmenu === 'userMatchRef'",
                            h5("User Matched Reference Sites"),
-                           helpText("In Development"),
+                           helpText("This feature is still in Development"),
                            verbatimTextOutput("testout1"),
                            verbatimTextOutput("testout3"),
                            DT::dataTableOutput("testout2")
@@ -370,7 +356,12 @@ body <- shinydashboard::dashboardBody(
                                              column(width=8,
                                                     fluidRow(
                                                       column(width=8,
-                                                             plotOutput("nn.ord")
+                                                             plotOutput("nn.ord", dblclick = "nn.ord_dblclick",
+                                                                        brush = brushOpts(
+                                                                          id = "nn.ord_brush",
+                                                                          resetOnNew = TRUE
+                                                                        )),
+                                                             helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out")
                                                       ),
                                                       column(width=4,
                                                              box(width=12,
@@ -407,7 +398,8 @@ body <- shinydashboard::dashboardBody(
                                                     column(width=3,
                                                            selectInput("nn_method","NN Method", multiple=F,selectize=F,
                                                                        choices=c("ANNA","RDA-ANNA","User Selected")),
-                                                           numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1)
+                                                           numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
+                                                           checkboxInput("nn.scale","Scale Ordination",value=T)
                                                     ),
                                                     column(width=3,
                                                            conditionalPanel("input.nn_method!='User Selected'",

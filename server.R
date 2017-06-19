@@ -127,40 +127,40 @@ shinyServer(function(input, output, session) {
   })
   output$test.vs.ref = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
     selectInput(inputId="raw.testrefcols", label=h5('Test(1) or Reference(0) Site'), multiple = F,selectize=T,selected = "",
-                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
+                choices=c("None",raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%habitat.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$north&
                                          !raw.colnames()%in%coord.ID.cols$espg
-                                       ])    
+                                       ]))    
   })
   output$eastingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
     selectInput(inputId="raw.east", label=h5('Easting or Longitude'), multiple = F,selectize=T,selected = "",
-                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
+                choices=c("None",raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$north&
                                          !raw.colnames()%in%coord.ID.cols$espg&
                                          !raw.colnames()%in%reftest.ID.cols$data
-                                       ])    
+                                       ]))    
   })
   output$northingCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
     selectInput(inputId="raw.north", label=h5('Northing or Latitude'), multiple = F,selectize=T,selected = "",
-                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
+                choices=c("None",raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$espg&
                                          !raw.colnames()%in%reftest.ID.cols$data
-                                       ])    
+                                       ]))    
   })
   output$ESPGCols = renderUI({#taxa/metric ID when 1 row is used for identifiers - wide format
     selectInput(inputId="raw.espg", label=h5('ESPG'), multiple = F,selectize=T,selected = "",
-                choices=raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
+                choices=c("None",raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
                                          !raw.colnames()%in%coord.ID.cols$east&
                                          !raw.colnames()%in%coord.ID.cols$north&
                                          !raw.colnames()%in%reftest.ID.cols$data
-                                       ])    
+                                       ]))    
   })
   
   output$time_ID<-renderUI({
@@ -192,7 +192,7 @@ shinyServer(function(input, output, session) {
   observeEvent(input$raw.habitat.cols.rem,{
     habitat.ID.cols$data<-NULL
   })
-  abund.ID.cols<-reactiveValues(data=NULL) #Set Habitat columns
+  abund.ID.cols<-reactiveValues(data=NULL) #Set Abundance columns
   observeEvent(input$raw.abund.cols,{
     abund.ID.cols$data<-input$widetaxacols1
   })
@@ -200,31 +200,31 @@ shinyServer(function(input, output, session) {
     abund.ID.cols$data<-NULL
   })
   
-  reftest.ID.cols<-reactiveValues(data=NULL) #Set Habitat columns
-  observeEvent(input$raw.testref.cols,{
+  reftest.ID.cols<-reactiveValues(data=NULL) #Set Ref v.s test site columns
+  observeEvent(input$finalize_raw,{
     reftest.ID.cols$data<-input$raw.testrefcols
   })
-  observeEvent(input$raw.testref.cols.rem,{
-    reftest.ID.cols$data<-NULL
-  })
+  #observeEvent(input$raw.testref.cols.rem,{
+  #  reftest.ID.cols$data<-NULL
+  #})
   
   coord.ID.cols<-reactiveValues(east=NULL,north=NULL,espg=NULL) #Set Coordinate columns
-  observeEvent(input$raw.coord.cols,{
+  observeEvent(input$finalize_raw,{
     coord.ID.cols$east<-input$raw.east
     coord.ID.cols$north<-input$raw.north
     coord.ID.cols$espg<-input$raw.espg
   })
-  observeEvent(input$raw.coord.cols.rem,{
-    coord.ID.cols$east<-NULL
-    coord.ID.cols$north<-NULL
-    coord.ID.cols$espg<-NULL
-  })
+  #observeEvent(input$raw.coord.cols.rem,{
+  #  coord.ID.cols$east<-NULL
+  #  coord.ID.cols$north<-NULL
+  #  coord.ID.cols$espg<-NULL
+  #})
   
-  output$view.coord.cols<-renderPrint({
-    paste0(coord.ID.cols$east," | ",
-    coord.ID.cols$north," | ",
-    coord.ID.cols$espg)
-  })
+  #output$view.coord.cols<-renderPrint({
+  #  paste0(coord.ID.cols$east," | ",
+  #  coord.ID.cols$north," | ",
+  #  coord.ID.cols$espg)
+  #})
   
   output$finalizeRaw<-reactive({ #when site ID and taxa ID columns are entered, the option to finalize options becomes available
     validate(
@@ -326,7 +326,6 @@ shinyServer(function(input, output, session) {
   })
   
   missing.sampling.events<-reactiveValues(full.data=NULL,rnames=NULL) #if a time field is specified, find missing sampling events
-  
   observeEvent(input$finalize_raw,{
     validate(
       need(input$time.ID!="","")
@@ -362,7 +361,6 @@ shinyServer(function(input, output, session) {
         
         missing.sampling.events$full.data<-missing.samples
         missing.sampling.events$rnames<-rnames
-        #coordinates.by.site$data.all<-plyr::rbind.fill(coordinates.by.site$data.all,missing.events)
       }
     )
   })
@@ -412,91 +410,108 @@ shinyServer(function(input, output, session) {
   coordinates.by.site<-reactiveValues(data.all=NULL,data.unique=NULL,gis.site.id=NULL) #coordinate by site table
   observeEvent(input$finalize_raw,{
     if (!is.null(coord.ID.cols$east)&!is.null(coord.ID.cols$north)&!is.null(coord.ID.cols$espg)){
-      isolate(
-        if (input$rawFormat=="Wide"){
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+      if (coord.ID.cols$east!="None" & coord.ID.cols$north!="None" & coord.ID.cols$espg!="None"){
+        isolate(
+          if (input$rawFormat=="Wide"){
+            if (length(site.ID.cols$data)==1){
+              site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
+            } else {
+              site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+              site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+            }
+            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                      c(
+                                        which(raw.colnames()%in%coord.ID.cols$east),
+                                        which(raw.colnames()%in%coord.ID.cols$north),
+                                        which(raw.colnames()%in%coord.ID.cols$espg)
+                                      )]
+            rownames(output)<-site.names
+            output<-data.frame(apply(output,2,as.numeric))
+            output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
+            colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
           }
-          output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
-                                    raw.colnames()%in%coord.ID.cols$east|
-                                      raw.colnames()%in%coord.ID.cols$north|
-                                      raw.colnames()%in%coord.ID.cols$espg]
-          output<-data.frame(apply(output,2,as.numeric))
-          rownames(output)<-site.names
-          output<-data.frame(apply(output,2,as.numeric))
-          output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
-          colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
-        }
-      )
-      isolate(
-        if (input$rawFormat=="Long") {
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        )
+        isolate(
+          if (input$rawFormat=="Long") {
+            if (length(site.ID.cols$data)==1){
+              site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
+            } else {
+              site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+              site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+            }
+            
+            output<-data.frame(raw.bio.data$data[-c(1),
+                                                 c(
+                                                   which(raw.colnames()%in%coord.ID.cols$east),
+                                                   which(raw.colnames()%in%coord.ID.cols$north),
+                                                   which(raw.colnames()%in%coord.ID.cols$espg)
+                                                 )])
+            output<-output[!duplicated(site.names),]
+            rownames(output)<-site.names[!duplicated(site.names)]
+            colnames(output)<-c("east","north","epsg")
+            output<-data.frame(apply(output,2,as.numeric))
+            output<-cbind(do.call(rbind,strsplit(site.names[!duplicated(site.names)],";")),output)
+            colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
           }
-          
-          output<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%coord.ID.cols$east|
-                                                 raw.colnames()%in%coord.ID.cols$north|
-                                                 raw.colnames()%in%coord.ID.cols$espg])
-          output<-output[!duplicated(site.names),]
-          rownames(output)<-site.names[!duplicated(site.names)]
-          colnames(output)<-c("east","north","epsg")
-          output<-data.frame(apply(output,2,as.numeric))
-          output<-cbind(do.call(rbind,strsplit(site.names[!duplicated(site.names)],";")),output)
-          colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
+        )
+        validate(
+          need(!any(is.na(output)),"NAs detected")
+        )
+        for (i in unique(output$epsg)){ #Convert coordinates to EPSG 4326
+          output.coords<-output[output$epsg==i,]
+          sp::coordinates(output.coords)<- ~ east+north
+          try1<-try(sp::proj4string(output.coords) <- sp::CRS(paste0("+init=epsg:",i)),silent=T)
+          validate(need(class(try1)!="try-error", "GIS Projection Error"))
+          sp::proj4string(output.coords) <- sp::CRS(paste0("+init=epsg:",i))
+          output.coords <- sp::spTransform(output.coords, CRS("+init=epsg:4326"))
+          output.coords<-as.data.frame(output.coords)
+          output[output$epsg==i,]<-output.coords[,colnames(output)]
         }
-      )
-      validate(
-        need(!any(is.na(output)),"NAs detected")
-      )
-      for (i in unique(output$epsg)){ #Convert coordinates to EPSG 4326
-        #sp::coordinates(output)<- ~ east+north
-        #output.coords<-NA
-        output.coords<-output[output$epsg==i,]
-        sp::coordinates(output.coords)<- ~ east+north
-        sp::proj4string(output.coords) <- sp::CRS(paste0("+init=epsg:",i))
-        output.coords <- sp::spTransform(output.coords, CRS("+init=epsg:4326"))
-        output.coords<-as.data.frame(output.coords)
-        output[output$epsg==i,]<-output.coords[,colnames(output)]
+        
+        if (length(site.ID.cols$data)==1){#Identify site ID column that corresponds to individual sites
+          gis.site.id<-site.names
+        } else {
+          if (input$rawFormat=="Wide"){
+            temp1<-data.frame(!apply(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%site.ID.cols$data],2,duplicated))
+            temp2<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                     c(
+                                       which(raw.colnames()%in%coord.ID.cols$east),
+                                       which(raw.colnames()%in%coord.ID.cols$north),
+                                       which(raw.colnames()%in%coord.ID.cols$espg)
+                                     )]
+          }
+          if (input$rawFormat=="Long") {
+            temp1<-data.frame(!apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],2,duplicated))
+            temp2<-data.frame(raw.bio.data$data[-c(1),
+                                                c(
+                                                  which(raw.colnames()%in%coord.ID.cols$east),
+                                                  which(raw.colnames()%in%coord.ID.cols$north),
+                                                  which(raw.colnames()%in%coord.ID.cols$espg)
+                                                )])
+          }
+          temp2<-!duplicated(temp2)
+          temp3<-NA
+          for (n in 1:ncol(temp1)){
+            temp3<-apply(cbind(temp1[,n],temp2), 1, function(x)(all(x)))
+            if (identical(temp3,temp2)){
+              if (input$rawFormat=="Wide"){
+                gis.site.id<-as.character(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%site.ID.cols$data[n]])
+              }
+              if (input$rawFormat=="Long"){
+                gis.site.id<-as.character(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data[n]])
+              }
+              break()
+            } else {
+              gis.site.id<-site.names
+            }
+          }
+        }
+        
+        coordinates.by.site$data.unique<-unique(output[,c("east","north","epsg")])
+        rownames(coordinates.by.site$data.unique)<-unique(gis.site.id)
+        coordinates.by.site$gis.site.id<-gis.site.id
+        coordinates.by.site$data.all<-output
       }
-      
-      if (length(site.ID.cols$data)==1){#Identify site ID column that corresponds to individual sites
-        gis.site.id<-site.names
-      } else {
-        temp1<-!apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],2,duplicated)
-        if (input$rawFormat=="Wide"){
-          temp2<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
-                                    raw.colnames()%in%coord.ID.cols$east|
-                                      raw.colnames()%in%coord.ID.cols$north|
-                                      raw.colnames()%in%coord.ID.cols$espg]
-        }
-        if (input$rawFormat=="Long") {
-          temp2<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%coord.ID.cols$east|
-                                                 raw.colnames()%in%coord.ID.cols$north|
-                                                 raw.colnames()%in%coord.ID.cols$espg])
-        }
-        temp2<-!duplicated(temp2)
-        temp3<-NA
-        for (n in 1:ncol(temp1)){
-          temp3<-apply(cbind(temp1[,n],temp2), 1, function(x)(all(x)))
-          if (identical(temp3,temp2)){
-            gis.site.id<-raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data[n]]
-            break()
-          } else {
-            gis.site.id<-site.names
-          }
-        }
-      }
-
-      coordinates.by.site$data.unique<-unique(output[,c("east","north","epsg")])
-      rownames(coordinates.by.site$data.unique)<-unique(gis.site.id)
-      coordinates.by.site$gis.site.id<-gis.site.id
-      coordinates.by.site$data.all<-output
     }
   })
   
@@ -508,37 +523,39 @@ shinyServer(function(input, output, session) {
   reftest.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
   observeEvent(input$finalize_raw,{
     if (!is.null(reftest.ID.cols$data)){
-      isolate(
-        if (input$rawFormat=="Wide"){
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+      if (reftest.ID.cols$data!="None"){
+        isolate(
+          if (input$rawFormat=="Wide"){
+            if (length(site.ID.cols$data)==1){
+              site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
+            } else {
+              site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+              site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+            }
+            output<-data.frame(as.numeric(as.character(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])))
+            rownames(output)<-site.names
+            colnames(output)<-reftest.ID.cols$data
           }
-          output<-data.frame(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])
-          rownames(output)<-site.names
-          colnames(output)<-reftest.ID.cols$data
-        }
-      )
-      isolate(
-        if (input$rawFormat=="Long") {
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        )
+        isolate(
+          if (input$rawFormat=="Long") {
+            if (length(site.ID.cols$data)==1){
+              site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
+            } else {
+              site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+              site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+            }
+            
+            output<-data.frame(as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%reftest.ID.cols$data])))
+            output<-output[!duplicated(site.names),]
+            rownames(output)<-site.names[!duplicated(site.names)]
+            colnames(output)<-reftest.ID.cols$data
           }
-          
-          output<-data.frame(raw.bio.data$data[-c(1),raw.colnames()%in%reftest.ID.cols$data])
-          output<-output[!duplicated(site.names),]
-          rownames(output)<-site.names[!duplicated(site.names)]
-          colnames(output)<-reftest.ID.cols$data
-        }
-      )
-      output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
-      rownames(output)<-site.names[!duplicated(site.names)]
-      reftest.by.site$data<-output
+        )
+        output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
+        rownames(output)<-site.names[!duplicated(site.names)]
+        reftest.by.site$data<-output
+      }
     }
   })
   
@@ -551,7 +568,7 @@ shinyServer(function(input, output, session) {
   feeding.data<-reactiveValues(data=NULL,data.reduced=NULL)
   habitat.data<-reactiveValues(data=NULL)
   
-  observeEvent(input$calculate_metrics,{
+  observeEvent(input$finalize_raw,{
     isolate(
       if(input$metdata==F){
         bio.data$data<-BenthicAnalysistesting::benth.metUI(x=taxa.by.site$data, taxa.sep = input$taxa_sep, HBI=NULL)
@@ -575,7 +592,7 @@ shinyServer(function(input, output, session) {
     )
   })
   
-  observeEvent({input$calculate_metrics},{
+  observeEvent({input$finalize_raw},{
     isolate(
       if(input$metdata==F){
         feeding.data$data<-aggregate(t(taxa.by.site$data),by=list(bio.data$data$Attributes$Feeding),FUN=sum)
@@ -838,9 +855,9 @@ shinyServer(function(input, output, session) {
   
   all.data<-reactiveValues(data=NULL)
   
-  observeEvent({
-    input$finalize_raw|input$calculate_metrics
-  },{
+  observeEvent(
+    c(input$finalize_raw,input$calculate_metrics)
+  ,{
     all.data$data<-taxa.by.site$data.alt.colnames
     
     if(input$metdata==F & !is.null(bio.data$data$Summary.Metrics)){
@@ -874,7 +891,7 @@ shinyServer(function(input, output, session) {
   output$out_test.site.select<-renderUI({
     validate(need(!is.null(reftest.ID.cols$data),""))
     selectInput("in_test_site_select","",selected="None",
-                choices=c("None",rownames(all.data$data)[reftest.by.site$data==0])
+                choices=c("None",rownames(habitat.by.site$data)[reftest.by.site$data==0])
                 )
   })
   
@@ -895,10 +912,16 @@ shinyServer(function(input, output, session) {
     input$nn_method,
     input$in_metric.select
   ),{
+    nn.sites$data<-NULL
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+    validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
     validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA",""))
+    validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
+    validate(need(input$nn.k>=3|input$nn_useDD,"Need k>=3 or use Distance-Decay site selection"))
     if (input$nn_method=="RDA-ANNA"){
       validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
+      validate(need(length(input$in_metric.select)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
+      validate(need(!any(is.na(bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select])),"NAs not allowed in biological data"))
     }
     
     nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],
@@ -908,7 +931,7 @@ shinyServer(function(input, output, session) {
                                                         dd.factor=input$nn.factor,
                                                         dd.constant=input$nn.constant,
                                                         RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
-                                                        scale=T)
+                                                        scale=input$nn.scale)
   })
   
   output$out_nn.axis1<-renderUI({
@@ -920,43 +943,62 @@ shinyServer(function(input, output, session) {
                 selected=colnames(nn.sites$data$env.ordination.scores)[2])
   })
   
+  nn.ord.ranges <- reactiveValues(x = NULL, y = NULL)
+  observeEvent(input$nn.ord_dblclick, {
+    brush <- input$nn.ord_brush
+    if (!is.null(brush)) {
+      nn.ord.ranges$x <- c(brush$xmin, brush$xmax)
+      nn.ord.ranges$y <- c(brush$ymin, brush$ymax)
+      
+    } else {
+      nn.ord.ranges$x <- NULL
+      nn.ord.ranges$y <- NULL
+    }
+  })
   output$nn.ord<-renderPlot({
+    if(is.null(input$in_nn.axis1) | is.null(input$in_nn.axis2)){return(NULL)}
+    
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
     validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+    validate(need(!is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2),""))
+    validate(need(input$nn_method!="User Selected",""))
+    
+    if (input$nn_method=="RDA-ANNA"){
+      validate(need(!is.null(input$in_metric.select),"Select indicator metrics first"))
+      validate(need(length(input$in_metric.select)>=3,"Select more than 3 indicator metrics"))
+    }
+    
+    
     if (input$in_test_site_select!="None"){
-      hull<-nn.sites$data$ordination.scores[reftest.by.site$data==1,]
+      hull<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
       hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
       hull<-hull[hull$Ref==T,]
       hull<-hull[chull(hull[,1:nn.sites$data$sig.axis]),]
       
       test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_test_site_select,]
       
-      reference.sites<-nn.sites$data$ordination.scores[reftest.by.site$data==1,]
+      reference.sites<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
       reference.sites$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
       reference.sites<-reference.sites[reference.sites$Ref==T,]
     }
-    
-    if (input$nn_method=="User Selected"){
-      return(NULL)
-    }
-    if (input$nn_method=="RDA-ANNA"){
-      validate(need(!is.null(input$in_metric.select),"Select indicator metrics first"))
-      validate(need(length(input$in_metric.select)>=3,"Select more than 3 indicator metrics"))
-    }
-    
-    p1 <- ggplot(data=nn.sites$data$ordination.scores,aes(x=get(input$in_nn.axis1), y=get(input$in_nn.axis2))) + 
+
+    p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=input$in_nn.axis1, y=input$in_nn.axis2)) + 
+      geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
       geom_point(aes(color=Class))  + theme_bw() + 
       labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method),
-           subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {""}) +
+           subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
+           ) +
       xlab(paste0(input$in_nn.axis1)) + 
-      ylab(paste0(input$in_nn.axis2))
+      ylab(paste0(input$in_nn.axis2)) +
+      coord_cartesian(xlim = nn.ord.ranges$x, ylim = nn.ord.ranges$y, expand = TRUE)
+
 
     if (input$nnplot.hab.points){
-      p1<- p1 + geom_point(data=data.frame(nn.sites$data$env.ordination.scores)[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
+      p1<- p1 + geom_point(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
     }
     
     if (input$nnplot.hab.names){
-      p1<- p1 + geom_text(data=data.frame(nn.sites$data$env.ordination.scores)[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
+      p1<- p1 + geom_text(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
       
     }
     
@@ -976,7 +1018,9 @@ shinyServer(function(input, output, session) {
   
   output$nn.dist<-renderPlot({
     validate(need(input$in_test_site_select!="None",""))
-    
+    validate(need(input$nn_method!="User Selected",""))
+    validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+    if (input$in_test_site_select=="None"){return()}
     if (input$in_test_site_select!="None"){
       distances<-nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_test_site_select,]
       distances<-distances[order(distances)]
@@ -1103,6 +1147,7 @@ shinyServer(function(input, output, session) {
     
     m
     })
+  
   #########################################################
   #    Map markers
   #########################################################
@@ -1171,7 +1216,7 @@ shinyServer(function(input, output, session) {
   observeEvent(input$Date_field.help,{
     showModal(modalDialog(
       size="s",
-      helpText("One column assigned to 'Site/Sampling' Event may be used to indicate the temporal sequence of sampling events. This field should be numeric."),
+      helpText("One column assigned to 'Site/Sampling Event' may be used to indicate the temporal sequence of sampling events. This field should be numeric."),
       footer = modalButton("Dismiss"),
       easyClose = TRUE
     )
