@@ -856,7 +856,20 @@ shinyServer(function(input, output, session) {
   all.data<-reactiveValues(data=NULL)
   
   observeEvent(
-    c(input$finalize_raw,input$calculate_metrics)
+    c(input$finalize_raw,
+      input$calculate_metrics,
+      input$in_test_site_select,
+      input$nn.k,
+      input$nn_useDD,
+      input$nn.factor,
+      input$nn.constant,
+      input$nn_method,
+      input$in_metric.select,
+      input$tsa_outlier_rem,
+      input$tsa_outbound,
+      input$useMD,
+      input$tsa_weighted
+    )
   ,{
     all.data$data<-taxa.by.site$data.alt.colnames
     
@@ -875,13 +888,25 @@ shinyServer(function(input, output, session) {
     if (!is.null(reftest.by.site$data)){
       all.data$data <- data.frame(cbind(all.data$data,reftest.by.site$data))
     }
-
+    
+    if (!is.null(nn.sites$data)){
+      temp<-data.frame(nn.sites$data$TF.matrix)
+      temp<-temp[rownames(all.data$data),]
+      all.data$data<-data.frame(cbind(all.data$data,temp))
+    }
+    
     if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
       all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
       missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
       all.data$data$east[is.na(all.data$data$east)]<-coordinates.by.site$data.unique$east[match(missing.sites,rownames(coordinates.by.site$data.unique))]
       all.data$data$north[is.na(all.data$data$north)]<-coordinates.by.site$data.unique$north[match(missing.sites,rownames(coordinates.by.site$data.unique))]
+      rownames(all.data$data)<-apply(all.data$data[,site.ID.cols$data], 1 , function(x) paste(x,collapse=";",sep=";"))
     }
+    
+    if (!is.null(tsa.results$data)){
+      all.data$data<-data.frame(cbind(all.data$data,tsa.results$data))
+    }
+    
     
   })
 
@@ -897,9 +922,17 @@ shinyServer(function(input, output, session) {
   
   output$out_metric.select<-renderUI({
     validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
-    selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
-                choices=colnames(bio.data$data$Summary.Metrics)
-    )
+    
+    if(input$nn_method=="ANNA" & input$metdata==F){
+      selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
+                  choices=c(colnames(bio.data$data$Summary.Metrics),
+                            "O:E","Bray-Curtis","CA1","CA2")
+      )
+    } else {
+      selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
+                  choices=colnames(bio.data$data$Summary.Metrics)
+      )
+    }
   })
 
   nn.sites<-reactiveValues(data=NULL)
@@ -973,7 +1006,7 @@ shinyServer(function(input, output, session) {
       hull<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
       hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
       hull<-hull[hull$Ref==T,]
-      hull<-hull[chull(hull[,1:nn.sites$data$sig.axis]),]
+      hull<-hull[chull(hull[,c(input$in_nn.axis1,input$in_nn.axis2)]),]
       
       test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_test_site_select,]
       
@@ -1045,8 +1078,217 @@ shinyServer(function(input, output, session) {
 
 
   #########################################################
-  #TSA
+  #TSA Calculations
   #########################################################
+  
+  #Calculate Additional metrics if input$nn_method=="ANNA" & input$metdata==F
+  additional.metrics<-reactiveValues(data=NULL) #create a list of tables of additional metrics at reference sites
+  observeEvent(c(
+    input$in_test_site_select,
+    input$nn.k,
+    input$nn_useDD,
+    input$nn.factor,
+    input$nn.constant,
+    input$nn_method,
+    input$in_metric.select
+  ),
+  {
+    validate(need(!is.null(nn.sites$data),""))
+    temp<-all.data$data
+    colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
+    for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
+      Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
+      rownames(temp2)[nrow(temp2)]<-rownames(Test)
+      eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
+    }
+  })
+  
+  tsa.results<-reactiveValues(data=NULL,output.list=NULL) #create a list of tsa.test objects
+  observeEvent(c(
+    input$in_test_site_select,
+    input$nn.k,
+    input$nn_useDD,
+    input$nn.factor,
+    input$nn.constant,
+    input$nn_method,
+    input$in_metric.select,
+    input$tsa_outlier_rem,
+    input$tsa_outbound,
+    input$useMD,
+    input$tsa_weighted
+  ),
+  {
+    validate(need(!is.null(nn.sites$data),""))
+    validate(need(input$nn_method!="User Selected","")) # Fix this once user selected ref sites implimented
+    temp<-all.data$data
+    output2<-all.data$data
+    output2[,c("TSA Impairment",
+               "Interval Test",
+               "Equivalence Test",
+               "Randomization p value",
+               "Test Site D2",
+               "Lower Critical",
+               "Upper Critical",
+               "TSA Lambda",
+               "TSA F Value"
+    )]<-NA
+    output2<-output2[-c(1:ncol(all.data$data))]
+    for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
+      test.site<-rownames(all.data$data)[i]
+      if (input$nn_method=="ANNA"){
+        validate(need(!is.null(additional.metrics$data),""))
+        Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
+        
+        add.met.test<-data.frame(additional.metrics$data[which(names(additional.metrics$data)%in%test.site)])
+        colnames(add.met.test)<-c("O:E","Bray-Curtis","CA1","CA2")
+        
+        Test<-cbind(Test,add.met.test[nrow(add.met.test),])
+        
+        ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+        Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
+        Reference<-cbind(Reference,add.met.test[1:(nrow(add.met.test)-1),])
+      }
+      if (input$nn_method=="RDA-ANNA"){
+        validate(need(!is.null(additional.metrics$data),""))
+        Test<-temp[i,input$in_metric.select]
+        ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+        Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
+      }
+      
+      if (input$tsa_weighted){
+        distance<-nn.sites$data$distance.matrix[rownames(Test),]
+        distance<-distance[rownames(Reference)]
+      } else {
+        distance<-NULL
+      }
+      
+      output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=Test,
+                                                   Reference=Reference,
+                                                   outlier.rem=input$tsa_outlier_rem,
+                                                   outbound=input$tsa_outbound,
+                                                   m.select=input$useMD,
+                                                   distance=distance
+      ), silent=T)
+      
+      validate(need(class(output1)!="try-error",output1[1]))
+      
+      output2[i,]<-t(output1$tsa.results)
+      
+      eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
+    }
+    tsa.results$data<-output2
+  })
+  
+  #########################################################
+  #TSA Plots
+  #########################################################
+  
+  output$tsa.result.printed<-renderPrint({
+    validate(need(!is.null(tsa.results$data),""))
+    
+    if (input$in_test_site_select!="None"){
+      print(tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)])
+    }
+      
+  })
+  
+  output$tsa.distance.plot<-renderPlot({
+    validate(need(!is.null(tsa.results$data),""))
+
+    if (input$in_test_site_select!="None"){
+      tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      
+      tsa.dist<-tsa.object$mahalanobis.distance
+      nInd<-as.numeric(tsa.object$general.results["Number of Metrics",])
+      nRef<-as.numeric(tsa.object$general.results["Number of Reference Sites",])
+      tsa.lambda<-as.numeric(tsa.object$tsa.results["TSA Lambda",])
+      test.site<-tsa.object$general.results["Test Site",]
+      
+      #d1<-data.frame(Actual=tsa.dist[1:(length(tsa.dist)-1)])
+      #d2<-data.frame(Actual=((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
+      #d3<-rbind(d1,d2)
+      #d3$type<-c(rep("Reference",nrow(d1)),rep("Non-central F",nrow(d2)))
+      
+      #ggplot(d3,aes(x=Actual))+
+      ##  xlim(c(-1,(max(tsa.dist)+5)))+
+        #geom_density()+
+      #  geom_density(aes(group=type))
+      d1<-density(tsa.dist[1:(length(tsa.dist)-1)])
+      d2<-density(((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
+      
+      plot(d1,main=paste0(test.site),yaxt="n",xlab="Mahalanobis Distance",ylab="",xlim=c(-1,(max(tsa.dist)+3)))
+      polygon(d1,col="grey80")
+      lines(d2,lty=2,cex=2,col="grey70")
+      abline(v=((nInd*(nRef-1))*qf(0.95, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda, log=FALSE)/((nRef-nInd)*nRef)), lty=2, col='red')
+      abline(v=((nInd*(nRef-1))*qf(0.05, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda, log=FALSE)/((nRef-nInd)*nRef)), lty=2, col='orange')
+      points(tsa.dist[length(tsa.dist)],0, pch="*",col='black',cex=2,lwd=2)
+      if (any(names(tsa.object)=="jacknife")) {
+        segments(x0=tsa.object$jacknife[2,],y0=0.05,x1=tsa.object$jacknife[3,],y1=0.05,col="black",lwd=2)
+        text(tsa.object$jacknife[2,],0.05,labels=paste0("Jacknife Consistency ",substr(tsa.object$jacknife[1,],1,3),"%"),pos=3, offset=0.5,cex=0.70,col='black')
+      }
+      
+      text(tsa.dist[length(tsa.dist)],0, labels="test-site",pos=3, offset=0.5,cex=1,col='black')
+      
+    }
+  })
+  
+  output$tsa.metric.plot<-renderPlot({
+    validate(need(!is.null(tsa.results$data),""))
+    
+    if (input$in_test_site_select!="None"){
+      tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      
+      tsa.stand<-tsa.object$z.scores
+      nInd<-ncol(tsa.stand)
+      nRef<-nrow(tsa.stand)-1
+      
+      part.tsa<-if (!is.null(tsa.object$partial.tsa)) {tsa.object$partial.tsa} else {NULL}
+      all.met<-colnames(tsa.stand)
+      sel.met<-unlist(strsplit(substr(tsa.object$general.results["Selected Indicator Metrics",],1,(nchar(tsa.object$general.results["Selected Indicator Metrics",])-2)),split=", "))
+      
+      cols<-colorRampPalette(brewer.pal(12, "Paired"))(nInd)
+      text<-paste(seq(1:ncol(tsa.stand)),colnames(tsa.stand),sep=".")
+      b1<-ceiling(length(text)/3)
+      b2<-ceiling(length(text)*2/3)
+      
+      l<-rbind(c(1,1,1),c(1,1,1),c(2,3,4))
+      layout(l)
+      
+      #suppressWarnings(split.screen(c(2,1)))
+      #split.screen(c(1, 3), screen = 2)
+      #screen(1)
+      #par(mar = c(1.9,0.8,1.2,0.8))
+      boxplot(tsa.stand[1:nRef,],col=cols,outline=F,yaxt="n",ylim=c(min(tsa.stand)*1.3,max(tsa.stand)*1.1),names=seq(1:nInd),cex.axis=1.2,main="",...)
+      title(main=paste0(rownames(tsa.stand)[(nRef+1)]," Boxplot"),cex=1.5)
+      points(seq(1:nInd),tsa.stand[(nRef+1),],col="red",pch=19,cex=1)
+      
+      points(which(colnames(tsa.stand)%in%sel.met),tsa.stand[nrow(tsa.stand),sel.met],col="black",pch="O",cex=1.75)#This line circles points that are used in analysis
+      if (any(part.tsa$p<0.05)) {
+        points(which(colnames(tsa.stand)%in%rownames(part.tsa)[part.tsa$p<0.05]),rep((min(tsa.stand)*1.2),length(rownames(part.tsa)[part.tsa$p<0.05])),col="red",pch="*",cex=2)
+      }
+      #screen(3)
+      #par(mar = c(0,0,0,0))
+      plot(1, type="n", axes=F, xlab="", ylab="")
+      legend("center",text[1:b1],cex=0.9,fill=cols[1:b1],bty="n",x.intersp=0.7,y.intersp=0.7)
+      #screen(4)
+      #par(mar = c(0,0,0,0))
+      plot(1, type="n", axes=F, xlab="", ylab="")
+      legend("center",text[(b1+1):b2],cex=0.9,fill=cols[(b1+1):b2],bty="n",x.intersp=0.7,y.intersp=0.7)
+      #screen(5)
+      #par(mar = c(0,0,0,0))
+      plot(1, type="n", axes=F, xlab="", ylab="")
+      legend("center",text[(b2+1):length(text)],cex=0.9,fill=cols[(b2+1):length(text)],bty="n",x.intersp=0.7,y.intersp=0.7)
+      
+      #close.screen(all=T)
+      #par(def.par)
+    }
+  })
+  
+  
+  
   
   #########################################################
   #Mapping

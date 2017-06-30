@@ -351,7 +351,7 @@ body <- shinydashboard::dashboardBody(
           conditionalPanel("input.sidebarmenu === 'RCA_sub'",
                            h3("Integrity Assessment by Reference Condition Approach"),
                            tabBox("RCA",width=12,
-                                  tabPanel(h4("Site Matching"),
+                                  tabPanel(h4("Nearest-Neighbour Site Matching"),
                                            fluidRow(
                                              column(width=8,
                                                     fluidRow(
@@ -416,7 +416,30 @@ body <- shinydashboard::dashboardBody(
                                              )
                                            )
                                   ),
-                                  tabPanel(h4("Test Site Analysis"))
+                                  tabPanel(h4("Test Site Analysis"),
+                                           column(width=8,
+                                                  fluidRow(
+                                                    column(width=6,
+                                                           box(title=h4("TSA Options"),
+                                                               checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value =F),
+                                                               checkboxInput("tsa_outlier_rem","Remove optential outlier reference sites?",value =F),
+                                                               conditionalPanel("input.tsa_outlier_rem=='false'",
+                                                                                sliderInput("tsa_outbound", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
+                                                               )
+                                                           ),
+                                                           plotOutput("tsa.distance.plot")
+                                                    ),
+                                                    textOutput("tsa.result.printed")
+                                                  ),
+                                                  fluidRow(
+                                                    plotOutput("tsa.metric.plot")
+                                                  )
+                                           ),
+                                           column(width=4,
+                                                  plotOutput("tsa.ca.plot"),
+                                                  plotOutput("tsa.pcoa.plot")
+                                           )
+                                  )
                                   
                            )
           )
