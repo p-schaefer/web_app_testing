@@ -12,6 +12,7 @@ library(plyr)
 library(dplyr)
 library(ggplot2)
 library(leaflet.minicharts)
+library(vegan)
 
 options(shiny.maxRequestSize=30*1024^2)
 
@@ -924,12 +925,14 @@ shinyServer(function(input, output, session) {
     validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
     
     if(input$nn_method=="ANNA" & input$metdata==F){
-      selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
+      selectInput("in_metric.select","", multiple = T,selectize = F, size=15,
                   choices=c(colnames(bio.data$data$Summary.Metrics),
-                            "O:E","Bray-Curtis","CA1","CA2")
+                            "O:E","Bray-Curtis","CA1","CA2"), 
+                  selected=c(colnames(bio.data$data$Summary.Metrics),
+                             "O:E","Bray-Curtis","CA1","CA2")
       )
     } else {
-      selectInput("in_metric.select","", multiple = T,selectize = F, size=10,
+      selectInput("in_metric.select","", multiple = T,selectize = F, size=15,
                   choices=colnames(bio.data$data$Summary.Metrics)
       )
     }
@@ -943,7 +946,8 @@ shinyServer(function(input, output, session) {
     input$nn.factor,
     input$nn.constant,
     input$nn_method,
-    input$in_metric.select
+    input$in_metric.select,
+    input$nn.scale
   ),{
     nn.sites$data<-NULL
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
@@ -1085,44 +1089,57 @@ shinyServer(function(input, output, session) {
   additional.metrics<-reactiveValues(data=NULL) #create a list of tables of additional metrics at reference sites
   observeEvent(c(
     input$in_test_site_select,
-    input$nn.k,
-    input$nn_useDD,
-    input$nn.factor,
-    input$nn.constant,
-    input$nn_method,
-    input$in_metric.select
-  ),
-  {
-    validate(need(!is.null(nn.sites$data),""))
-    temp<-all.data$data
-    colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
-    for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
-      Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
-      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
-      temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
-      rownames(temp2)[nrow(temp2)]<-rownames(Test)
-      eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
-    }
-  })
-  
-  tsa.results<-reactiveValues(data=NULL,output.list=NULL) #create a list of tsa.test objects
-  observeEvent(c(
-    input$in_test_site_select,
+    input$tsa_outbound,
+    input$tsa_outlier_rem,
+    input$tsa_weighted,
     input$nn.k,
     input$nn_useDD,
     input$nn.factor,
     input$nn.constant,
     input$nn_method,
     input$in_metric.select,
-    input$tsa_outlier_rem,
+    input$nn.scale
+  ), {
+    validate(need(input$in_test_site_select!="None",""))
+    temp<-all.data$data
+    colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
+    
+    Test<-temp[input$in_test_site_select,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+    Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+    temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
+    rownames(temp2)[nrow(temp2)]<-rownames(Test)
+    eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
+    
+    
+    #for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
+    #  Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+    #  ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+    #  Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+    #  temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
+    #  rownames(temp2)[nrow(temp2)]<-rownames(Test)
+    #  eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
+    #}
+  })
+  
+  tsa.results<-reactiveValues(data=NULL,output.list=NULL) #create a list of tsa.test objects
+  observeEvent(c(
+    input$in_test_site_select,
     input$tsa_outbound,
-    input$useMD,
-    input$tsa_weighted
-  ),
-  {
+    input$tsa_outlier_rem,
+    input$tsa_weighted,
+    input$nn.k,
+    input$nn_useDD,
+    input$nn.factor,
+    input$nn.constant,
+    input$nn_method,
+    input$in_metric.select,
+    input$nn.scale
+    ), {
+    validate(need(input$in_test_site_select!="None","Select a test site from the sidebar"))
     validate(need(!is.null(nn.sites$data),""))
-    validate(need(input$nn_method!="User Selected","")) # Fix this once user selected ref sites implimented
+    validate(need(input$nn_method!="User Selected","User selected reference sites not yet implimented")) # Fix this once user selected ref sites implimented
+    validate(need(!is.null(input$in_metric.select),"Select Metrics"))
     temp<-all.data$data
     output2<-all.data$data
     output2[,c("TSA Impairment",
@@ -1136,49 +1153,92 @@ shinyServer(function(input, output, session) {
                "TSA F Value"
     )]<-NA
     output2<-output2[-c(1:ncol(all.data$data))]
-    for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
-      test.site<-rownames(all.data$data)[i]
-      if (input$nn_method=="ANNA"){
-        validate(need(!is.null(additional.metrics$data),""))
-        Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
-        
-        add.met.test<-data.frame(additional.metrics$data[which(names(additional.metrics$data)%in%test.site)])
-        colnames(add.met.test)<-c("O:E","Bray-Curtis","CA1","CA2")
-        
-        Test<-cbind(Test,add.met.test[nrow(add.met.test),])
-        
-        ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-        Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
-        Reference<-cbind(Reference,add.met.test[1:(nrow(add.met.test)-1),])
-      }
-      if (input$nn_method=="RDA-ANNA"){
-        validate(need(!is.null(additional.metrics$data),""))
-        Test<-temp[i,input$in_metric.select]
-        ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-        Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
-      }
+    
+    test.site<-input$in_test_site_select
+    if (input$nn_method=="ANNA"){
+      validate(need(!is.null(additional.metrics$data),""))
+      Test<-temp[test.site,colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
       
-      if (input$tsa_weighted){
-        distance<-nn.sites$data$distance.matrix[rownames(Test),]
-        distance<-distance[rownames(Reference)]
-      } else {
-        distance<-NULL
-      }
+      add.met.test<-data.frame(additional.metrics$data[which(names(additional.metrics$data)%in%test.site)])
+      colnames(add.met.test)<-c("O:E","Bray-Curtis","CA1","CA2")
       
-      output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=Test,
-                                                   Reference=Reference,
-                                                   outlier.rem=input$tsa_outlier_rem,
-                                                   outbound=input$tsa_outbound,
-                                                   m.select=input$useMD,
-                                                   distance=distance
-      ), silent=T)
+      Test<-cbind(Test,add.met.test[nrow(add.met.test),])
       
-      validate(need(class(output1)!="try-error",output1[1]))
-      
-      output2[i,]<-t(output1$tsa.results)
-      
-      eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
+      Reference<-cbind(Reference,add.met.test[1:(nrow(add.met.test)-1),])
     }
+    if (input$nn_method=="RDA-ANNA"){
+      validate(need(!is.null(additional.metrics$data),""))
+      Test<-temp[test.site,input$in_metric.select]
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
+    }
+    
+    if (input$tsa_weighted){
+      distance<-nn.sites$data$distance.matrix[rownames(Test),]
+      distance<-distance[rownames(Reference)]
+    } else {
+      distance<-NULL
+    }
+    
+    output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=Test,
+                                                     Reference=Reference,
+                                                     outlier.rem=input$tsa_outlier_rem,
+                                                     outbound=input$tsa_outbound,
+                                                     m.select=input$useMD,
+                                                     distance=distance
+    ), silent=T)
+    
+    validate(need(class(output1)!="try-error",output1[1]))
+    
+    output2<-t(output1$tsa.results)
+    
+    eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
+
+    #for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
+    #  test.site<-rownames(all.data$data)[i]
+    #  if (input$nn_method=="ANNA"){
+    #    validate(need(!is.null(additional.metrics$data),""))
+    #    Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
+    #    
+    #    add.met.test<-data.frame(additional.metrics$data[which(names(additional.metrics$data)%in%test.site)])
+    #    colnames(add.met.test)<-c("O:E","Bray-Curtis","CA1","CA2")
+    #    
+    #    Test<-cbind(Test,add.met.test[nrow(add.met.test),])
+    #    
+    #    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+    #    Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
+    #    Reference<-cbind(Reference,add.met.test[1:(nrow(add.met.test)-1),])
+    #  }
+    #  if (input$nn_method=="RDA-ANNA"){
+    #    validate(need(!is.null(additional.metrics$data),""))
+    #    Test<-temp[i,input$in_metric.select]
+    #    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+    #    Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
+    #  }
+    #  
+    #  if (input$tsa_weighted){
+    #    distance<-nn.sites$data$distance.matrix[rownames(Test),]
+    #    distance<-distance[rownames(Reference)]
+    #  } else {
+    #    distance<-NULL
+    #  }
+    #  
+    #  output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=Test,
+    #                                               Reference=Reference,
+    #                                               outlier.rem=input$tsa_outlier_rem,
+    #                                               outbound=input$tsa_outbound,
+    #                                               m.select=input$useMD,
+    #                                               distance=distance
+    #  ), silent=T)
+    #  
+    #  validate(need(class(output1)!="try-error",output1[1]))
+    #  
+    #  output2[i,]<-t(output1$tsa.results)
+    #  
+    #  eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
+    #}
     tsa.results$data<-output2
   })
   
@@ -1186,13 +1246,39 @@ shinyServer(function(input, output, session) {
   #TSA Plots
   #########################################################
   
-  output$tsa.result.printed<-renderPrint({
+  output$tsa.result.printed<-renderUI({
     validate(need(!is.null(tsa.results$data),""))
     
     if (input$in_test_site_select!="None"){
-      print(tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)])
-    }
+      tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      tsa.object<-tsa.object[[1]]
       
+      if (tsa.object$tsa.results["TSA Impairment",]=="Not Impaired"){
+        status="primary"
+        stat.col<-"blue"
+      }
+      if (tsa.object$tsa.results["TSA Impairment",]=="Possibly Impaired"){
+        status="warning"
+        stat.col<-"orange"
+      }
+      if (tsa.object$tsa.results["TSA Impairment",]=="Impaired"){
+        status="danger"
+        stat.col<-"red"
+      }
+      
+      box(width=10,title=h2(tsa.object$test.site),status=status,
+          infoBox(value=tsa.object$tsa.results["TSA Impairment",],title="Status",width=10, color=stat.col,icon=icon("heartbeat",lib="font-awesome"),fill=T),
+          fluidRow(valueBox(tsa.object$tsa.results["Test Site D2",],"Test site D2",width=4, color="light-blue",icon=icon("line-chart",lib="font-awesome")),
+                   valueBox(tsa.object$jacknife["Jacknife Consistency",],"Jacknife Consistency",width=4, color="light-blue",icon=icon("refresh",lib="font-awesome")),
+                   valueBox(tsa.object$general.results["Number of Metrics",],"Number of Metrics",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome"))
+          ),
+          fluidRow(valueBox(tsa.object$general.results["Number of Reference Sites",],"Reference samples",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome")),
+                   valueBox(tsa.object$tsa.results["Interval Test",],"Interval Test",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome")),
+                   valueBox(tsa.object$tsa.results["Equivalence Test",],"Equivalence Test",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome"))
+          )
+      )
+    }
+    
   })
   
   output$tsa.distance.plot<-renderPlot({
@@ -1200,6 +1286,7 @@ shinyServer(function(input, output, session) {
 
     if (input$in_test_site_select!="None"){
       tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      tsa.object<-tsa.object[[1]]
       
       tsa.dist<-tsa.object$mahalanobis.distance
       nInd<-as.numeric(tsa.object$general.results["Number of Metrics",])
@@ -1207,15 +1294,6 @@ shinyServer(function(input, output, session) {
       tsa.lambda<-as.numeric(tsa.object$tsa.results["TSA Lambda",])
       test.site<-tsa.object$general.results["Test Site",]
       
-      #d1<-data.frame(Actual=tsa.dist[1:(length(tsa.dist)-1)])
-      #d2<-data.frame(Actual=((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
-      #d3<-rbind(d1,d2)
-      #d3$type<-c(rep("Reference",nrow(d1)),rep("Non-central F",nrow(d2)))
-      
-      #ggplot(d3,aes(x=Actual))+
-      ##  xlim(c(-1,(max(tsa.dist)+5)))+
-        #geom_density()+
-      #  geom_density(aes(group=type))
       d1<-density(tsa.dist[1:(length(tsa.dist)-1)])
       d2<-density(((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
       
@@ -1240,6 +1318,7 @@ shinyServer(function(input, output, session) {
     
     if (input$in_test_site_select!="None"){
       tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      tsa.object<-tsa.object[[1]]
       
       tsa.stand<-tsa.object$z.scores
       nInd<-ncol(tsa.stand)
@@ -1249,44 +1328,83 @@ shinyServer(function(input, output, session) {
       all.met<-colnames(tsa.stand)
       sel.met<-unlist(strsplit(substr(tsa.object$general.results["Selected Indicator Metrics",],1,(nchar(tsa.object$general.results["Selected Indicator Metrics",])-2)),split=", "))
       
-      cols<-colorRampPalette(brewer.pal(12, "Paired"))(nInd)
-      text<-paste(seq(1:ncol(tsa.stand)),colnames(tsa.stand),sep=".")
-      b1<-ceiling(length(text)/3)
-      b2<-ceiling(length(text)*2/3)
-      
-      l<-rbind(c(1,1,1),c(1,1,1),c(2,3,4))
-      layout(l)
-      
-      #suppressWarnings(split.screen(c(2,1)))
-      #split.screen(c(1, 3), screen = 2)
-      #screen(1)
-      #par(mar = c(1.9,0.8,1.2,0.8))
-      boxplot(tsa.stand[1:nRef,],col=cols,outline=F,yaxt="n",ylim=c(min(tsa.stand)*1.3,max(tsa.stand)*1.1),names=seq(1:nInd),cex.axis=1.2,main="",...)
-      title(main=paste0(rownames(tsa.stand)[(nRef+1)]," Boxplot"),cex=1.5)
-      points(seq(1:nInd),tsa.stand[(nRef+1),],col="red",pch=19,cex=1)
-      
-      points(which(colnames(tsa.stand)%in%sel.met),tsa.stand[nrow(tsa.stand),sel.met],col="black",pch="O",cex=1.75)#This line circles points that are used in analysis
+      melt.ref<-reshape2::melt(tsa.stand[1:nRef,])
+      p1<-ggplot(data=melt.ref) + theme_bw() +
+        geom_boxplot(data=melt.ref, aes(x=Var2,y=value, fill=Var2), width=0.5) +
+        labs(title=paste0(input$in_test_site_select," Indicator metrics")) +
+        theme(axis.text.x = element_text(angle = 65, hjust = 1), legend.position="none", strip.text.x = element_blank()) +
+        ylim(min(tsa.stand)*1.3, max(tsa.stand)*1.1) +
+        xlab("") + 
+        ylab("") +
+        geom_point(data=data.frame(x=levels(melt.ref$Var2)[which(colnames(tsa.stand)%in%sel.met)],y=tsa.stand[(nRef+1),sel.met]), aes(x=x,y=y), shape=1,fill="transparent",size=4) +
+        geom_point(data=data.frame(x=levels(melt.ref$Var2),y=tsa.stand[(nRef+1),]), aes(x=x,y=y), col="red")
+        
+        
       if (any(part.tsa$p<0.05)) {
-        points(which(colnames(tsa.stand)%in%rownames(part.tsa)[part.tsa$p<0.05]),rep((min(tsa.stand)*1.2),length(rownames(part.tsa)[part.tsa$p<0.05])),col="red",pch="*",cex=2)
+        p1 <- p1 +geom_point(data=data.frame(x=levels(melt.ref$Var2)[which(colnames(tsa.stand)%in%rownames(part.tsa)[part.tsa$p<0.05])],y=rep(min(tsa.stand)*1.2,length(rownames(part.tsa)[part.tsa$p<0.05]))), aes(x=x,y=y), shape=8,size=2)
       }
-      #screen(3)
-      #par(mar = c(0,0,0,0))
-      plot(1, type="n", axes=F, xlab="", ylab="")
-      legend("center",text[1:b1],cex=0.9,fill=cols[1:b1],bty="n",x.intersp=0.7,y.intersp=0.7)
-      #screen(4)
-      #par(mar = c(0,0,0,0))
-      plot(1, type="n", axes=F, xlab="", ylab="")
-      legend("center",text[(b1+1):b2],cex=0.9,fill=cols[(b1+1):b2],bty="n",x.intersp=0.7,y.intersp=0.7)
-      #screen(5)
-      #par(mar = c(0,0,0,0))
-      plot(1, type="n", axes=F, xlab="", ylab="")
-      legend("center",text[(b2+1):length(text)],cex=0.9,fill=cols[(b2+1):length(text)],bty="n",x.intersp=0.7,y.intersp=0.7)
-      
-      #close.screen(all=T)
-      #par(def.par)
+       p1
     }
   })
   
+  output$tsa.pcoa.plot<-renderPlot({
+    validate(need(!is.null(tsa.results$data),""))
+    
+    if (input$in_test_site_select!="None"){
+      tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      tsa.object<-tsa.object[[1]]
+      
+      vectors=T
+      mets<-tsa.object$z.scores[,colnames(tsa.object$raw.data)]
+      nInd<-ncol(mets)
+      nRef<-nrow(mets)-1
+      refsites<-c(rep(1,nRef),0)
+      
+      plot1<-vegan::capscale(biotools::D2.dist(mets,(cov(mets[1:nRef,])),inverted=F)~1,add=F,sqrt.dist=F)
+      fig<-vegan::ordiplot(plot1,type="n",main=paste(rownames(mets[max(nrow(mets)),])," PCoA Plot",sep=""),
+                           xlab=paste("MDS ",substr((eigenvals(plot1)[1]/sum(eigenvals(plot1)))*100,1,4),"%"),
+                           ylab=paste("MDS ",substr((eigenvals(plot1)[2]/sum(eigenvals(plot1)))*100,1,4),"%"))
+      points(fig,what="sites",cex=0.8,select=refsites==1,col="black",pch=19)
+      points(fig,what="sites",cex=0.8,select=refsites==0,col="red",pch=19)
+      suppressWarnings(ordiellipse(plot1,refsites,kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      text(fig,what="sites",select=refsites==1,col="black",cex=0.8,pos=3)
+      text(fig,what="sites",select=refsites==0,col="red",cex=0.9,pos=3)
+      if (vectors==T) {
+        plot(vegan::envfit(plot1,mets,display="sites",na.rm=F,permutations=0),cex=0.8,col="orange")
+      }
+
+    }
+  })
+  
+  output$tsa.ca.plot<-renderPlot({
+    validate(need(!is.null(tsa.results$data),""))
+    
+    if (input$in_test_site_select!="None"){
+      temp<-all.data$data
+      colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
+      
+      Test<-temp[input$in_test_site_select,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      nRef<-nrow(Reference)
+      raw.data<-rbind(Reference,Test)
+      pRef<-colSums(decostand(Reference,"pa"))/nrow(Reference)
+      
+      ca.ord<-cca(log(raw.data[,names(which(pRef>=0.1))]+1))
+      ca1<-ca.ord$CA$u[,1]
+      ca2<-ca.ord$CA$u[,2]
+      
+      plot(ca.ord,type="n",main=paste(rownames(ca1)[(nRef+1)]," CA Plot",sep=""),
+           xlab=paste("CA1 ",substr((eigenvals(ca.ord)[1]/sum(eigenvals(ca.ord)))*100,1,4),"%"),
+           ylab=paste("CA2 ",substr((eigenvals(ca.ord)[2]/sum(eigenvals(ca.ord)))*100,1,4),"%"))
+      text(x=ca.ord$CA$v[,1],y=ca.ord$CA$v[,2],labels=rownames(ca.ord$CA$v),col="grey50",cex=0.7)
+      points(x=ca1[1:nRef],y=ca2[1:nRef],cex=0.8,col="black",pch=19)
+      points(x=ca1[(nRef+1)],y=ca2[(nRef+1)],cex=0.8,col="red",pch=19)
+      text(x=ca1[1:nRef],y=ca2[1:nRef],labels=names(ca1)[1:nRef],col="black",cex=0.8,pos=3)
+      text(x=ca1[(nRef+1)],y=ca2[(nRef+1)],labels=names(ca1)[(nRef+1)],col="red",cex=0.9,pos=3)
+      suppressWarnings(ordiellipse(ca.ord,c(rep(1,nrow(Reference)),0),kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      }
+  })
   
   
   
@@ -1381,8 +1499,8 @@ shinyServer(function(input, output, session) {
     
     if (input$map_pointtype=="Points"){
       m <- addMarkers(map=m,
-                      lng=coordinates.by.site$data.unique$east,
-                      lat=coordinates.by.site$data.unique$north,
+                      lng=all.data$data$east,
+                      lat=all.data$data$north,
                       label=rownames(coordinates.by.site$data.unique)
       )
     }

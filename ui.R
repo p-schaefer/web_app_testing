@@ -256,51 +256,54 @@ body <- shinydashboard::dashboardBody(
           
           
           conditionalPanel("input.sidebarmenu === 'transSummaryMetrics'",
-                           tabBox("Transformations",width=12,
-                                  tabPanel("Single Metrics",
-                                           fluidRow(
-                                             column(width=3,
-                                                    box(title="Transformations",width=12,
-                                                        uiOutput("mets_for_trans_out"),
-                                                        uiOutput("out_trans_selected"),
-                                                        actionButton("apply.trans",label="Apply Selection")
-                                                    )
-                                             ),
-                                             box(title="", width=3,
-                                                 tableOutput("applied_transformations")
-                                             ),
-                                             box(title="Plots",width=6,
-                                                 plotOutput("met.trans.plot1"),
-                                                 plotOutput("met.trans.plot2")
+                           fluidRow(
+                             tabBox("Transformations",width=12,
+                                    tabPanel("Single Metrics",
+                                             fluidRow(
+                                               column(width=3,
+                                                      box(title="Transformations",width=12,
+                                                          uiOutput("mets_for_trans_out"),
+                                                          uiOutput("out_trans_selected"),
+                                                          actionButton("apply.trans",label="Apply Selection")
+                                                      )
+                                               ),
+                                               box(title="", width=3,
+                                                   tableOutput("applied_transformations")
+                                               ),
+                                               box(title="Plots",width=6,
+                                                   plotOutput("met.trans.plot1"),
+                                                   plotOutput("met.trans.plot2")
+                                               )
                                              )
-                                           )
-                                  ),
-                                  tabPanel("Batch",
-                                           fluidRow(
-                                             column(width=3,
-                                                    box(title="Batch Transformations",width=12,
-                                                        helpText("Select Multiple metrics by keywords (i.e. Richness, Percent, per, as, etc)"),
-                                                        textInput("trans_keyword", label = "", value = ""),
-                                                        verbatimTextOutput("batch_met_sel"),
-                                                        hr(),
-                                                        radioButtons("trans.batch", label = "",choices = list("None" = "None", "Log10" = "Log10", "Log10+1" = "Log10+1", "Square Root" = "Square Root", "Inverse" = "Inverse", "Arcsine Sqare Root"= "Arcsine Sqare Root", "Logit" = "Logit", "Delete"="Delete"), 
-                                                                     selected = "None"
-                                                        ),
-                                                        actionButton("apply.trans.batch",label="Apply Selection")
-                                                    )
-                                             ),
-                                             box(title="", width=3,
-                                                 tableOutput("applied_transformations.batch")
+                                    ),
+                                    tabPanel("Batch",
+                                             fluidRow(
+                                               column(width=3,
+                                                      box(title="Batch Transformations",width=12,
+                                                          helpText("Select Multiple metrics by keywords (i.e. Richness, Percent, per, as, etc)"),
+                                                          textInput("trans_keyword", label = "", value = ""),
+                                                          verbatimTextOutput("batch_met_sel"),
+                                                          hr(),
+                                                          radioButtons("trans.batch", label = "",choices = list("None" = "None", "Log10" = "Log10", "Log10+1" = "Log10+1", "Square Root" = "Square Root", "Inverse" = "Inverse", "Arcsine Sqare Root"= "Arcsine Sqare Root", "Logit" = "Logit", "Delete"="Delete"), 
+                                                                       selected = "None"
+                                                          ),
+                                                          actionButton("apply.trans.batch",label="Apply Selection")
+                                                      )
+                                               ),
+                                               box(title="", width=3,
+                                                   tableOutput("applied_transformations.batch")
+                                               )
                                              )
-                                           )
-                                  ),
-                                  tabPanel("Transformed Metrics",
-                                           DT::dataTableOutput("view.transformed.metrics")
-                                  )
+                                    ),
+                                    tabPanel("Transformed Metrics",
+                                             DT::dataTableOutput("view.transformed.metrics")
+                                    )
+                             )
+                             
                            )
           ),
           
-
+          
           ##################################################
           # User Matched Reference Sites
           ##################################################
@@ -349,98 +352,106 @@ body <- shinydashboard::dashboardBody(
           # RCA
           ##################################################
           conditionalPanel("input.sidebarmenu === 'RCA_sub'",
-                           h3("Integrity Assessment by Reference Condition Approach"),
-                           tabBox("RCA",width=12,
-                                  tabPanel(h4("Nearest-Neighbour Site Matching"),
-                                           fluidRow(
-                                             column(width=8,
-                                                    fluidRow(
-                                                      column(width=8,
-                                                             plotOutput("nn.ord", dblclick = "nn.ord_dblclick",
-                                                                        brush = brushOpts(
-                                                                          id = "nn.ord_brush",
-                                                                          resetOnNew = TRUE
-                                                                        )),
-                                                             helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out")
-                                                      ),
-                                                      column(width=4,
-                                                             box(width=12,
-                                                                 uiOutput("out_nn.axis1"),
-                                                                 uiOutput("out_nn.axis2"),
-                                                                 checkboxInput("nnplot.hab.points","Show Habitat variables"),
-                                                                 checkboxInput("nnplot.hab.names","Show Habitat variables"),
-                                                                 conditionalPanel("input.nn_method=='RDA-ANNA'",
-                                                                                  checkboxInput("nnplot.metric","Show Metric Vectors")
-                                                                 )
-                                                             ),
-                                                             hr(),
-                                                             box(width=12,
-                                                                 conditionalPanel("input.in_test_site_select!='None'",
-                                                                                  checkboxInput("nnplot.hull","Show Convex Hull"),
-                                                                                  checkboxInput("nnplot.refnames","Show Reference Site Names"),
-                                                                                  checkboxInput("nnplot.testsite","Show Test Site")
-                                                                 )
-                                                             )
-                                                      )
-                                                    )
-                                             ),
-                                             column(width=4,
-                                                    box(title="Metrics",width=12,
-                                                        conditionalPanel("input.nn_method=='ANNA'",
-                                                                         checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
+                           fluidRow(
+                             h3("Integrity Assessment by Reference Condition Approach"),
+                             tabBox("RCA",width=12,
+                                    tabPanel(h4("Nearest-Neighbour Site Matching"),
+                                             fluidRow(
+                                               column(width=8,
+                                                      fluidRow(
+                                                        column(width=8,
+                                                               plotOutput("nn.ord", dblclick = "nn.ord_dblclick",
+                                                                          brush = brushOpts(
+                                                                            id = "nn.ord_brush",
+                                                                            resetOnNew = TRUE
+                                                                          )),
+                                                               helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out")
                                                         ),
-                                                        uiOutput("out_metric.select")
-                                                    )
-                                             )
-                                           ),
-                                           fluidRow(
-                                             column(width=10,
-                                                    column(width=3,
-                                                           selectInput("nn_method","NN Method", multiple=F,selectize=F,
-                                                                       choices=c("ANNA","RDA-ANNA","User Selected")),
-                                                           numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
-                                                           checkboxInput("nn.scale","Scale Ordination",value=T)
-                                                    ),
-                                                    column(width=3,
-                                                           conditionalPanel("input.nn_method!='User Selected'",
-                                                                            box(title="Distance-Decay Site Selection",width=12,
-                                                                                checkboxInput("nn_useDD","Use Distance-Decay Site Selection", value=T),
-                                                                                numericInput("nn.factor","Distance Decay factor", value = 2),
-                                                                                numericInput("nn.constant","Distance Decay constant", value = 1)
-                                                                            )
-                                                           )
-                                                    ),
-                                                    column(width=6,
-                                                           plotOutput("nn.dist")
-                                                    )
-                                             )
-                                           )
-                                  ),
-                                  tabPanel(h4("Test Site Analysis"),
-                                           column(width=8,
-                                                  fluidRow(
-                                                    column(width=6,
-                                                           box(title=h4("TSA Options"),
-                                                               checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value =F),
-                                                               checkboxInput("tsa_outlier_rem","Remove optential outlier reference sites?",value =F),
-                                                               conditionalPanel("input.tsa_outlier_rem=='false'",
-                                                                                sliderInput("tsa_outbound", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
+                                                        column(width=4,
+                                                               box(width=12,
+                                                                   uiOutput("out_nn.axis1"),
+                                                                   uiOutput("out_nn.axis2"),
+                                                                   checkboxInput("nnplot.hab.points","Show Habitat variables"),
+                                                                   checkboxInput("nnplot.hab.names","Show Habitat variables"),
+                                                                   conditionalPanel("input.nn_method=='RDA-ANNA'",
+                                                                                    checkboxInput("nnplot.metric","Show Metric Vectors")
+                                                                   )
+                                                               ),
+                                                               hr(),
+                                                               box(width=12,
+                                                                   conditionalPanel("input.in_test_site_select!='None'",
+                                                                                    checkboxInput("nnplot.hull","Show Convex Hull"),
+                                                                                    checkboxInput("nnplot.refnames","Show Reference Site Names"),
+                                                                                    checkboxInput("nnplot.testsite","Show Test Site")
+                                                                   )
                                                                )
-                                                           ),
-                                                           plotOutput("tsa.distance.plot")
-                                                    ),
-                                                    textOutput("tsa.result.printed")
-                                                  ),
-                                                  fluidRow(
-                                                    plotOutput("tsa.metric.plot")
-                                                  )
-                                           ),
-                                           column(width=4,
-                                                  plotOutput("tsa.ca.plot"),
-                                                  plotOutput("tsa.pcoa.plot")
-                                           )
-                                  )
-                                  
+                                                        )
+                                                      )
+                                               ),
+                                               column(width=4,
+                                                      box(title="Metrics",width=12,
+                                                          conditionalPanel("input.nn_method=='ANNA'",
+                                                                           checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
+                                                          ),
+                                                          uiOutput("out_metric.select")
+                                                      )
+                                               )
+                                             ),
+                                             fluidRow(
+                                               column(width=9,
+                                                      column(width=3,
+                                                             selectInput("nn_method","NN Method", multiple=F,selectize=F,
+                                                                         choices=c("ANNA","RDA-ANNA","User Selected")),
+                                                             numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
+                                                             checkboxInput("nn.scale","Scale Ordination",value=T)
+                                                      ),
+                                                      column(width=3,
+                                                             conditionalPanel("input.nn_method!='User Selected'",
+                                                                              box(title="Distance-Decay Site Selection",width=12,
+                                                                                  checkboxInput("nn_useDD","Use Distance-Decay Site Selection", value=T),
+                                                                                  numericInput("nn.factor","Distance Decay factor", value = 2),
+                                                                                  numericInput("nn.constant","Distance Decay constant", value = 1)
+                                                                              )
+                                                             )
+                                                      ),
+                                                      column(width=6,
+                                                             plotOutput("nn.dist")
+                                                      )
+                                               ),
+                                               box(title="TSA Options", width=3,
+                                                   checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value=F),
+                                                   checkboxInput("tsa_outlier_rem","Remove optential outlier reference sites?",value=F),
+                                                   conditionalPanel("input.tsa_outlier_rem==true",
+                                                                    sliderInput("tsa_outbound", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
+                                                   )
+                                               )
+                                               
+                                             )
+                                    ),
+                                    tabPanel(h4("Test Site Analysis"),
+                                             fluidRow(
+                                               fluidRow(
+                                                 column(width=6,
+                                                        fluidRow(
+                                                          uiOutput("tsa.result.printed")
+                                                        )
+                                                        
+                                                 ),
+                                                 column(width=4,
+                                                        tabsetPanel(
+                                                          tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot") ),
+                                                          tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot") ),
+                                                          tabPanel(title=("Metric Dimensional Scaling"),plotOutput("tsa.pcoa.plot") )
+                                                        )
+                                                 )
+                                               ),
+                                               column(width=10,plotOutput("tsa.metric.plot"))
+                                               
+                                             )
+                                    )
+                                    
+                             )
+                             
                            )
           )
           
