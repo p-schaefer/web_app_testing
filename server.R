@@ -289,6 +289,7 @@ shinyServer(function(input, output, session) {
           output<-data.frame(apply(output,2,as.numeric))
           rownames(output)<-site.names
           colnames(output)<-taxa.ID.cols$data
+          output<-output[site.names[!duplicated(site.names)],]
         }
       )
       isolate(
@@ -309,8 +310,9 @@ shinyServer(function(input, output, session) {
           }
           
           input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data])))
-          int.output<-aggregate(abund~sites+taxa, data=input,sum)
+          int.output<-aggregate(abund~taxa+sites, data=input,sum)
           output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
+          output<-output[site.names[!duplicated(site.names)],]
         }
       )
       output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
