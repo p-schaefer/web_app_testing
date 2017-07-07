@@ -5,6 +5,12 @@ library(DT)
 library(leaflet)
 library(ggplot2)
 library(leaflet.minicharts)
+#library(biotools)
+#library(reshape2)
+#library(rpanel)
+#library(tcltk)
+#library(vegan)
+
 
 ##################################################
 # Header

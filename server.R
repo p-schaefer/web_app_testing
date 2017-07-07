@@ -13,6 +13,7 @@ library(dplyr)
 library(ggplot2)
 library(leaflet.minicharts)
 library(vegan)
+library(reshape2)
 
 options(shiny.maxRequestSize=30*1024^2)
 
@@ -1360,13 +1361,13 @@ shinyServer(function(input, output, session) {
       nRef<-nrow(mets)-1
       refsites<-c(rep(1,nRef),0)
       
-      plot1<-vegan::capscale(biotools::D2.dist(mets,(cov(mets[1:nRef,])),inverted=F)~1,add=F,sqrt.dist=F)
+      plot1<-vegan::capscale(BenthicAnalysistesting::D2.dist(mets,(cov(mets[1:nRef,])),inverted=F)~1,add=F,sqrt.dist=F)
       fig<-vegan::ordiplot(plot1,type="n",main=paste(rownames(mets[max(nrow(mets)),])," PCoA Plot",sep=""),
                            xlab=paste("MDS ",substr((eigenvals(plot1)[1]/sum(eigenvals(plot1)))*100,1,4),"%"),
                            ylab=paste("MDS ",substr((eigenvals(plot1)[2]/sum(eigenvals(plot1)))*100,1,4),"%"))
       points(fig,what="sites",cex=0.8,select=refsites==1,col="black",pch=19)
       points(fig,what="sites",cex=0.8,select=refsites==0,col="red",pch=19)
-      suppressWarnings(ordiellipse(plot1,refsites,kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      suppressWarnings(vegan::ordiellipse(plot1,refsites,kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
       text(fig,what="sites",select=refsites==1,col="black",cex=0.8,pos=3)
       text(fig,what="sites",select=refsites==0,col="red",cex=0.9,pos=3)
       if (vectors==T) {
@@ -1390,7 +1391,7 @@ shinyServer(function(input, output, session) {
       raw.data<-rbind(Reference,Test)
       pRef<-colSums(decostand(Reference,"pa"))/nrow(Reference)
       
-      ca.ord<-cca(log(raw.data[,names(which(pRef>=0.1))]+1))
+      ca.ord<-vegan::cca(log(raw.data[,names(which(pRef>=0.1))]+1))
       ca1<-ca.ord$CA$u[,1]
       ca2<-ca.ord$CA$u[,2]
       
@@ -1402,7 +1403,7 @@ shinyServer(function(input, output, session) {
       points(x=ca1[(nRef+1)],y=ca2[(nRef+1)],cex=0.8,col="red",pch=19)
       text(x=ca1[1:nRef],y=ca2[1:nRef],labels=names(ca1)[1:nRef],col="black",cex=0.8,pos=3)
       text(x=ca1[(nRef+1)],y=ca2[(nRef+1)],labels=names(ca1)[(nRef+1)],col="red",cex=0.9,pos=3)
-      suppressWarnings(ordiellipse(ca.ord,c(rep(1,nrow(Reference)),0),kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      suppressWarnings(vegan::ordiellipse(ca.ord,c(rep(1,nrow(Reference)),0),kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
       }
   })
   
