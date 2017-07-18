@@ -11,9 +11,14 @@ library(colorRamps)
 library(plyr)
 library(dplyr)
 library(ggplot2)
-library(leaflet.minicharts)
 library(vegan)
 library(reshape2)
+library(dplyr)
+library(purrr)    # map functions (like lapply)
+library(lazyeval) # interp function
+library(tidyr)
+library(RColorBrewer)
+library(tibble)
 
 options(shiny.maxRequestSize=30*1024^2)
 
@@ -955,7 +960,7 @@ shinyServer(function(input, output, session) {
     nn.sites$data<-NULL
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
     validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
-    validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA",""))
+    validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA","User matched reference sites not yet implimented"))
     validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
     validate(need(input$nn.k>=3|input$nn_useDD,"Need k>=3 or use Distance-Decay site selection"))
     if (input$nn_method=="RDA-ANNA"){
@@ -1104,6 +1109,7 @@ shinyServer(function(input, output, session) {
     input$nn.scale
   ), {
     validate(need(input$in_test_site_select!="None",""))
+    validate(need(!is.null(nn.sites$data),""))
     temp<-all.data$data
     colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
     
@@ -1347,6 +1353,158 @@ shinyServer(function(input, output, session) {
         p1 <- p1 +geom_point(data=data.frame(x=levels(melt.ref$Var2)[which(colnames(tsa.stand)%in%rownames(part.tsa)[part.tsa$p<0.05])],y=rep(min(tsa.stand)*1.2,length(rownames(part.tsa)[part.tsa$p<0.05]))), aes(x=x,y=y), shape=8,size=2)
       }
        p1
+    }
+  })
+  
+  output$tsa.circle.plot<-renderPlot({
+    validate(need(!is.null(tsa.results$data),""))
+    validate(need(!input$metdata,""))
+    
+    if (input$in_test_site_select!="None"){
+      tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
+      tsa.object<-tsa.object[[1]]
+      
+      z.scores<-data.frame(tsa.object$z.scores)
+      z.scores$ref<-1
+      z.scores$ref[nrow(z.scores)]<-0
+      z.scores$ref<-as.factor(z.scores$ref)
+      z.scores$names<-rownames(z.scores)
+      
+      Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
+      Biodiversity<-c("Richness","Simpson")
+      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Hydrology<-c("CEFI")
+      Physical.Habitat<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
+                 "Sprawler.Richness")
+      Food.Web<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
+      "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
+      "Gatherer.Richness")
+      
+      plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), lower=NA,upper=NA,test=NA)
+      
+      for (i in as.character(plot.data$categories)) {
+        try1<-try(eval(parse(text=paste0("data1<-z.scores[,",i, "]"))),silent=T)
+        if(class(try1)=="try-error"){
+          next
+        }
+        eval(parse(text=paste0("data1<-z.scores[,",i, "]")))
+        if (is.data.frame(data1)){
+          are.nas<-unlist(apply(data1,2, function(x) !any(is.na(x)))) & unlist(apply(data1,2, function(x) IQR(x)>0))
+          if (sum(are.nas)==0) {
+            next
+          }
+          if(sum(are.nas)==1){
+            data2<-data1
+          } else {
+            data2<-rowSums(data1[,are.nas])
+          }
+        } else {
+          are.nas<-!any(is.na(data1))
+          if (sum(are.nas)==0) {
+            next
+          }
+          data2<-data1
+        }
+        data2<-(data2-min(data2))/(max(data2)-min(data2))
+        plot.data$test[plot.data$categories==i]<-data2[length(data2)]
+        plot.data$lower[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.25)
+        plot.data$upper[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.75)
+        #if (plot.data$test[plot.data$categories==i]>plot.data$upper[plot.data$categories==i]){
+        #  data2<-(data2-max(data2))/(min(data2)-max(data2))
+        #  plot.data$test[plot.data$categories==i]<-data2[length(data2)]
+        #  plot.data$lower[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.25)
+        #  plot.data$upper[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.75)
+        #}
+      }
+      data.raw<-reshape2::melt(plot.data,id.var=c("categories","test"))
+      
+      #if (any(data.raw$test==0)){
+      #  data.raw$test[data.raw$test==0]<-data.raw$value[data.raw$test==0 & data.raw$variable=="lower"]*0.5
+      #}
+
+      data1 <- tbl_df(data.raw[1:(nrow(data.raw)/2),])
+
+      # function requires 
+      rotate_data <- function(data, col, by_col) {
+        lev <- levels(data[,by_col][[1]])
+        num <- length(lev)
+        
+        dir <- rep(seq(((num - 1) * 360 / num), 0, length.out = num))
+        
+        data$dir_ <- map_dbl(1:nrow(data), function(x) {dir[match(data[x,by_col][[1]], lev)]})
+        
+        expr <- lazyeval::interp(~x, x = as.name(col))
+        data <- mutate_(data, .dots = setNames(list(expr), "plotX"))
+        data <- mutate_(data, .dots = setNames(list(expr), "plotY"))
+        
+        data <- data %>%
+          mutate(plotX = round(cos(dir_ * pi / 180) * plotX, 2),
+                 plotY = round(sin(dir_ * pi / 180) * plotY, 2))
+        
+        data
+      } 
+      
+      circleFun <- function(center=c(0,0), diameter=1, npoints=100, start=0, end=2, filled=TRUE){
+        tt <- seq(start*pi, end*pi, length.out=npoints)
+        df <- data.frame(
+          x = center[1] + diameter / 2 * cos(tt),
+          y = center[2] + diameter / 2 * sin(tt)
+        )
+        if(filled==TRUE) { #add a point at the center so the whole 'pie slice' is filled
+          df <- rbind(df, center)
+        }
+        return(df)
+      }
+      
+      data1 <- rotate_data(data1, "test", "categories")
+      data1<-data1[order(data1$dir_,decreasing = T),]
+      
+      data_fake <- tbl_df(data.raw)
+      data_fake <- rotate_data(data_fake, "value", "categories")
+      data_fake<-data_fake[order(data_fake$variable,1/data_fake$dir_,decreasing=F),]
+
+      line_length <- max(data1[,c("value","test")] * 1.1)
+      lim <- max(data1[,c("value","test")] * 1.1)
+      
+      rl <- data_frame(dir = unique(data1$dir_), l = rep(line_length, length(unique(data1$dir_)))) %>% 
+        mutate(plotX = cos(dir * pi / 180) * (l),
+               plotY = sin(dir * pi / 180) * (l))
+      rl$xend <- 0
+      rl$yend <- 0
+      
+      lb <- rl
+      lb$label <- levels(data1$categories)
+      
+      circlegrid <- data_frame(dia = seq(lim / 4, 2 * lim, lim / 4))
+      circlegrid <- circlegrid %>% 
+        mutate(data = map(dia, function(x) {
+          df     <- circleFun(diameter = x, filled = FALSE)
+          df$lev <- x
+          df
+        }))
+      
+      plotcircles <- bind_rows(circlegrid$data)
+      plotcircles$lev <- as.factor(plotcircles$lev)
+      
+      cl <- data_frame(x = as.numeric(levels(plotcircles$lev)), label = as.character(round(x,1)))
+      cl <- cl[cl$x <= max(data1$test * 1.1),]
+      
+      ggplot() + 
+        geom_segment(data = rl, aes(x = plotX, xend = xend, y = plotY, yend = yend), colour = "grey50") +
+        geom_path   (data = plotcircles, aes(x = x, y = y, group = lev), colour = "grey50") + 
+        geom_text   (data = cl, aes(x = x, y = 1, label = label), colour = "grey40") +
+        geom_polygon(data = data_fake, aes(y = plotY, x = plotX), fill = "grey70", colour = 'grey70', size = 1, show.legend = T, alpha = 0.8) +
+        geom_path   (data = data1[c(1:nrow(data1),1),], aes(y = plotY, x = plotX), colour = 'steelblue3', size = 1.1) +
+        geom_point  (data = data1, aes(y = plotY, x = plotX), stat='identity', colour = 'steelblue4', size = 1.1) +
+        geom_text   (data = lb, aes(x = plotX, y = plotY, label = label), colour = "black") +
+        ylim(-lim, lim) + xlim(-lim, lim) +
+        theme(
+          axis.text  = element_blank(), 
+          axis.title = element_blank(), 
+          line       = element_blank(), 
+          rect       = element_blank()
+        ) + 
+        coord_equal()
     }
   })
   

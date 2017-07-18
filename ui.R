@@ -445,6 +445,7 @@ body <- shinydashboard::dashboardBody(
                                                  ),
                                                  column(width=4,
                                                         tabsetPanel(
+                                                          tabPanel(title=("Circle Plot"),plotOutput("tsa.circle.plot") ),
                                                           tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot") ),
                                                           tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot") ),
                                                           tabPanel(title=("Metric Dimensional Scaling"),plotOutput("tsa.pcoa.plot") )

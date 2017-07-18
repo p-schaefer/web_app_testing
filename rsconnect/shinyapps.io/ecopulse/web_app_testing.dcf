@@ -3,8 +3,8 @@ title: web_app_testing
 account: ecopulse
 server: shinyapps.io
 appId: 165327
-bundleId: 889518
+bundleId: 894915
 url: https://ecopulse.shinyapps.io/web_app_testing/
-when: 1499026486.45788
+when: 1499390483.54258
 asMultiple: FALSE
 asStatic: FALSE
