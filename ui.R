@@ -386,9 +386,9 @@ body <- shinydashboard::dashboardBody(
                                                                hr(),
                                                                box(width=12,
                                                                    conditionalPanel("input.in_test_site_select!='None'",
-                                                                                    checkboxInput("nnplot.hull","Show Convex Hull"),
-                                                                                    checkboxInput("nnplot.refnames","Show Reference Site Names"),
-                                                                                    checkboxInput("nnplot.testsite","Show Test Site")
+                                                                                    checkboxInput("nnplot.hull","Show Convex Hull", value=T),
+                                                                                    checkboxInput("nnplot.refnames","Show Reference Site Names", value=T),
+                                                                                    checkboxInput("nnplot.testsite","Show Test Site", value=T)
                                                                    )
                                                                )
                                                         )
@@ -396,9 +396,10 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                column(width=4,
                                                       box(title="Metrics",width=12,
-                                                          conditionalPanel("input.nn_method=='ANNA'",
+                                                          #conditionalPanel("input.nn_method=='ANNA'",
                                                                            checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
-                                                          ),
+                                                          #)
+                                                          ,
                                                           uiOutput("out_metric.select")
                                                       )
                                                )
