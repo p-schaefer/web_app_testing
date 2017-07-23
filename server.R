@@ -966,6 +966,7 @@ shinyServer(function(input, output, session) {
     if (input$nn_method=="RDA-ANNA"){
       validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
       validate(need(length(input$in_metric.select)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
+      validate(need(!any(input$in_metric.select%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
       validate(need(!any(is.na(bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select])),"NAs not allowed in biological data"))
     }
     
@@ -976,7 +977,7 @@ shinyServer(function(input, output, session) {
                                                         dd.factor=input$nn.factor,
                                                         dd.constant=input$nn.constant,
                                                         RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
-                                                        scale=input$nn.scale)
+                                                        scale=T) #scale=input$nn.scale crashes it)
   })
   
   output$out_nn.axis1<-renderUI({
@@ -1004,13 +1005,13 @@ shinyServer(function(input, output, session) {
     if(is.null(input$in_nn.axis1) | is.null(input$in_nn.axis2)){return(NULL)}
     
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
-    validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+    #validate(need(!is.null(nn.sites$data),"Insufficient Information"))
     validate(need(!is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2),""))
     validate(need(input$nn_method!="User Selected",""))
     
     if (input$nn_method=="RDA-ANNA"){
-      validate(need(!is.null(input$in_metric.select),"Select indicator metrics first"))
-      validate(need(length(input$in_metric.select)>=3,"Select more than 3 indicator metrics"))
+      validate(need(!is.null(input$in_metric.select),"Select 3 or more indicator metrics"))
+      validate(need(length(input$in_metric.select)>=3,"Select 3 or more indicator metrics"))
     }
     
     
@@ -1063,8 +1064,8 @@ shinyServer(function(input, output, session) {
   
   output$nn.dist<-renderPlot({
     validate(need(input$in_test_site_select!="None",""))
-    validate(need(input$nn_method!="User Selected",""))
-    validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+    validate(need(input$nn_method!="User Selected","User matched reference site selection not yet implimented"))
+    #validate(need(!is.null(nn.sites$data),"Insufficient Information"))
     if (input$in_test_site_select=="None"){return()}
     if (input$in_test_site_select!="None"){
       distances<-nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_test_site_select,]
@@ -1409,12 +1410,12 @@ shinyServer(function(input, output, session) {
         plot.data$test[plot.data$categories==i]<-data2[length(data2)]
         plot.data$lower[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.25)
         plot.data$upper[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.75)
-        #if (plot.data$test[plot.data$categories==i]>plot.data$upper[plot.data$categories==i]){
-        #  data2<-(data2-max(data2))/(min(data2)-max(data2))
-        #  plot.data$test[plot.data$categories==i]<-data2[length(data2)]
-        #  plot.data$lower[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.25)
-        #  plot.data$upper[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.75)
-        #}
+        if (plot.data$test[plot.data$categories==i]>plot.data$upper[plot.data$categories==i]){
+          data2<-(data2-max(data2))/(min(data2)-max(data2))
+          plot.data$test[plot.data$categories==i]<-data2[length(data2)]
+          plot.data$lower[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.25)
+          plot.data$upper[plot.data$categories==i]<-quantile(data2[-c(length(data2))],0.75)
+        }
       }
       data.raw<-reshape2::melt(plot.data,id.var=c("categories","test"))
       
