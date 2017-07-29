@@ -14,9 +14,9 @@ library(ggplot2)
 library(vegan)
 library(reshape2)
 library(dplyr)
-library(purrr)    # map functions (like lapply)
-library(lazyeval) # interp function
-library(tidyr)
+#library(purrr)    # map functions (like lapply)
+#library(lazyeval) # interp function
+#library(tidyr)
 library(RColorBrewer)
 library(tibble)
 library(fmsb)
@@ -717,10 +717,10 @@ shinyServer(function(input, output, session) {
   observeEvent(input$apply.trans,{
     isolate(
       if (input$trans=="Delete") {
-        bio.data$data$Summary.Metrics<-bio.data$data$untransformed.metrics[,!colnames(bio.data$data$untransformed.metrics)%in%input$mets_for_trans_in]
+        bio.data$data$Summary.Metrics<-bio.data$data$Summary.Metrics[,!colnames(bio.data$data$Summary.Metrics)%in%input$mets_for_trans_in]
         bio.data$data$transformations$Transformation[bio.data$data$transformations$Metric%in%input$mets_for_trans_in]<-"Deleted"
       } else {
-        bio.data$data$Summary.Metrics[,colnames(bio.data$data$untransformed.metrics)%in%input$mets_for_trans_in]<-as.numeric(trans.metric())
+        bio.data$data$Summary.Metrics[,colnames(bio.data$data$Summary.Metrics)%in%input$mets_for_trans_in]<-as.numeric(trans.metric())
         bio.data$data$transformations$Transformation[bio.data$data$transformations$Metric%in%input$mets_for_trans_in]<-as.character(input$trans)
       }
     )
@@ -913,7 +913,7 @@ shinyServer(function(input, output, session) {
       rownames(all.data$data)<-apply(all.data$data[,site.ID.cols$data], 1 , function(x) paste(x,collapse=";",sep=";"))
     }
     
-    if (!is.null(tsa.results$data)){
+    if (!is.null(tsa.results$data) & class(tsa.results$data)!="try-error"){
       all.data$data<-data.frame(cbind(all.data$data,tsa.results$data))
     }
     
@@ -1008,6 +1008,7 @@ shinyServer(function(input, output, session) {
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
     #validate(need(!is.null(nn.sites$data),"Insufficient Information"))
     validate(need(!is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2),""))
+    validate(need(!is.null(input$in_test_site_select),""))
     validate(need(input$nn_method!="User Selected",""))
     
     if (input$nn_method=="RDA-ANNA"){
@@ -1032,8 +1033,8 @@ shinyServer(function(input, output, session) {
     p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=input$in_nn.axis1, y=input$in_nn.axis2)) + 
       geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
       geom_point(aes(color=Class))  + theme_bw() + 
-      labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method),
-           subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
+      labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method)#,
+           #subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
            ) +
       xlab(paste0(input$in_nn.axis1)) + 
       ylab(paste0(input$in_nn.axis2)) +
@@ -1375,7 +1376,7 @@ shinyServer(function(input, output, session) {
     melt.ref<-reshape2::melt(tsa.stand[1:nRef,])
     melt.ref$Group<-NA
     melt.ref$Group[melt.ref$Var2%in%c("Richness","Simpson","Shannon","Percent.Dominance")]<-"Biodiversity"
-    melt.ref$Group[melt.ref$Var2%in%c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Coleoptera",
+    melt.ref$Group[melt.ref$Var2%in%c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Isopoda","Percent.Coleoptera",
                                       "Ephem.as.Baetidae","Percent.EPT","Percent.mEPT","Percent.ICHAEBO",
                                       "EPT.Richness","Ephem.Richness","Percent.Ephem","Plec.Richness",
                                       "Percent.Plec","Trich.Richness","Percent.Trich","EPT.per.EPT.and.Chir",
@@ -1384,7 +1385,7 @@ shinyServer(function(input, output, session) {
     melt.ref$Group[melt.ref$Var2%in%c("CEFI")]<-"Hydrology"
     melt.ref$Group[melt.ref$Var2%in%c("Predator.Percent" ,"Predator.Richness",
                                       "ScraperGrazer.Percent","ScraperGrazer.Richness",
-                                      "Shredder.Percent","Shredder.Percent"
+                                      "Shredder.Richness","Shredder.Percent"
                                       ,"Filterer.Percent","Filterer.Richness",
                                       "Gatherer.Percent","Gatherer.Richness",
                                       "ScraperGrazer.to.Shredder.Collector")]<-"Feeding Guilds"
@@ -1414,6 +1415,7 @@ shinyServer(function(input, output, session) {
   output$tsa.circle.plot<-renderPlot({
     validate(need(!is.null(tsa.results$data),""))
     validate(need(!input$metdata,""))
+    validate(need(class(tsa.results$data)!="try-error", ""))
     
     if (input$in_test_site_select!="None"){
       #tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
@@ -1426,6 +1428,8 @@ shinyServer(function(input, output, session) {
       z.scores$ref<-as.factor(z.scores$ref)
       z.scores$names<-rownames(z.scores)
       
+      nRef<-length(which(z.scores$ref==1))
+      
       Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
       Biodiversity<-c("Richness","Simpson")
       Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
@@ -1437,7 +1441,7 @@ shinyServer(function(input, output, session) {
       "Gatherer.Richness")
       
       #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
-      plot.data<-data.frame(t(data.frame(max=rep(0.5,6),min=rep(0,6),test=NA)))
+      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
       colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
       rownames(plot.data)[3]<-input$in_test_site_select
       
@@ -1453,26 +1457,31 @@ shinyServer(function(input, output, session) {
             next()
           }
           if(sum(are.nas)==1){
-            plot.data[3,i]<-abs(data1[nrow(data1),are.nas]-mean(data1[1:(nrow(data1)-1),are.nas]))
+            data1<-data1[,are.nas]
+            tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+            tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
           } else {
-            plot.data[3,i]<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
-            #data2<-rowSums(data1[,are.nas])
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
+            tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
           }
         } else {
           are.nas<-!any(is.na(data1))
           if (sum(are.nas)==0) {
             next()
           }
-          plot.data[3,i]<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))
+          tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+          tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+          tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+          plot.data[3,i]<-tsa.NCPinterval
         }
-        if (plot.data[3,i]>1) {
-          plot.data[3,i]<-1/plot.data[3,i]
-        }
-
       }
       plot.data<-plot.data[,!is.na(plot.data[3,])]
       validate(need(ncol(plot.data)>2,"Insufficient Metrics selected"))
-      plot.data[3,]<-pnorm(as.numeric(plot.data[3,]),1,0.5,lower.tail=T)
       fmsb::radarchart(plot.data, axistype=1 , 
                   
                   #custom polygon
@@ -1490,6 +1499,7 @@ shinyServer(function(input, output, session) {
   
   output$tsa.pcoa.plot<-renderPlot({
     validate(need(!is.null(tsa.results$data),""))
+    validate(need(class(tsa.results$data)!="try-error", ""))
     
     if (input$in_test_site_select!="None"){
       #tsa.object<-tsa.results$output.list[which(names(tsa.results$output.list)%in%input$in_test_site_select)]
@@ -1520,6 +1530,7 @@ shinyServer(function(input, output, session) {
   
   output$tsa.ca.plot<-renderPlot({
     validate(need(!is.null(tsa.results$data),""))
+    validate(need(class(tsa.results$data)!="try-error", ""))
     
     if (input$in_test_site_select!="None"){
       temp<-all.data$data
