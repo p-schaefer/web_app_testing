@@ -7,6 +7,7 @@ library(leaflet)
 library(sp)
 library(rgdal)
 library(leaflet.minicharts)
+library(mapview)
 library(colorRamps)
 library(plyr)
 library(dplyr)
@@ -20,8 +21,13 @@ library(dplyr)
 library(RColorBrewer)
 library(tibble)
 library(fmsb)
+library(sf)
+library(googlesheets)
+library(googledrive)
 
 options(shiny.maxRequestSize=30*1024^2)
+
+userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/1pJvhMR02pdqhRnitFHXUx8HYRr9jWiBuiTwDJ_VIP5M/pub?output=csv")))
 
 shinyServer(function(input, output, session) {
   
@@ -49,14 +55,42 @@ shinyServer(function(input, output, session) {
   
   observeEvent(input$login, {
     # Check that data object exists and is data frame.
-    if (input$username=="Admin" & input$password=="Admin1867") {
+    userIDs1<-userIDs[,userIDs$UserID==input$username]
+    if (input$username==userIDs1$UserID & input$password==userIDs1$Password) {
       removeModal()
+      output$loggedin1<-reactive({TRUE})
+      outputOptions(output, "loggedin1", suspendWhenHidden = FALSE)
+      
     } else {
       showModal(login.modal(failed = TRUE))
-      loggedin<-T
+      loggedin<-TRUE
     }
   })
   
+  
+  
+  
+  #########################################################
+  #Saving and loading states
+  #########################################################
+  
+  #observeEvent(input$savestate, {
+  #  saveRDS( reactiveValuesToList(input) , file = 'inputs.RDS')
+  #  #save.image(file="savetest.RData")
+  #})
+  
+  #observeEvent(input$loadstate, {
+  #  if(!file.exists('inputs.RDS')) {return(NULL)}
+  #  
+  #  savedInputs <- readRDS('inputs.RDS')
+  #  
+  #  inputIDs      <- names(savedInputs) 
+  #  inputvalues   <- unlist(savedInputs) 
+  #  for (i in 1:length(savedInputs)) { 
+  #    session$sendInputMessage(inputIDs[i],  list(value=inputvalues[[i]]) )
+  #  }
+  #  #load("savetest.RData",envir = .GlobalEnv)
+  #})
   #########################################################
   #DATA INPUT
   #########################################################
@@ -275,6 +309,18 @@ shinyServer(function(input, output, session) {
     }
   }) #Detects when enough data have been specified to allow download of benthic metrics
   outputOptions(output, 'show_mets2', suspendWhenHidden=FALSE)
+  
+  #########################################################
+  #    User Matched Reference Sites
+  #########################################################
+  
+  userMatchRefSites<-reactiveValues(TFmatrix=NULL)
+  
+  observeEvent(input$inUserMatchRefFile,{
+    raw.bio.data$data<-read.csv(input$inUserMatchRefFile$datapath,strip.white=TRUE, header=T)
+    raw.bio.data$data<-data.frame(apply(raw.bio.data$data,2,as.character))
+  })
+  
   
   #########################################################
   #    When Raw Data are finalized
@@ -868,17 +914,21 @@ shinyServer(function(input, output, session) {
   observeEvent(
     c(input$finalize_raw,
       input$calculate_metrics,
-      input$in_test_site_select,
-      input$nn.k,
-      input$nn_useDD,
-      input$nn.factor,
-      input$nn.constant,
-      input$nn_method,
-      input$in_metric.select,
-      input$tsa_outlier_rem,
-      input$tsa_outbound,
-      input$useMD,
-      input$tsa_weighted
+      input$apply.trans,
+      input$apply.trans.batch,
+      input$habitat_convert_fact_to_numb,
+      input$habitat_convert_numb_to_fact
+      #input$in_test_site_select,
+      #input$nn.k,
+      #input$nn_useDD,
+      #input$nn.factor,
+      #input$nn.constant,
+      #input$nn_method,
+      #input$in_metric.select,
+      #input$tsa_outlier_rem,
+      #input$tsa_outbound,
+      #input$useMD,
+      #input$tsa_weighted
     )
   ,{
     all.data$data<-taxa.by.site$data.alt.colnames
@@ -899,12 +949,6 @@ shinyServer(function(input, output, session) {
       all.data$data <- data.frame(cbind(all.data$data,reftest.by.site$data))
     }
     
-    if (!is.null(nn.sites$data)){
-      temp<-data.frame(nn.sites$data$TF.matrix)
-      temp<-temp[rownames(all.data$data),]
-      all.data$data<-data.frame(cbind(all.data$data,temp))
-    }
-    
     if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
       all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
       missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
@@ -913,11 +957,9 @@ shinyServer(function(input, output, session) {
       rownames(all.data$data)<-apply(all.data$data[,site.ID.cols$data], 1 , function(x) paste(x,collapse=";",sep=";"))
     }
     
-    if (!is.null(tsa.results$data) & class(tsa.results$data)!="try-error"){
-      all.data$data<-data.frame(cbind(all.data$data,tsa.results$data))
-    }
-    
-    
+    #if (!is.null(tsa.results$data) & class(tsa.results$data)!="try-error"){
+    #  all.data$data<-data.frame(cbind(all.data$data,tsa.results$data))
+    #}
   })
 
   #########################################################
@@ -979,6 +1021,12 @@ shinyServer(function(input, output, session) {
                                                         dd.constant=input$nn.constant,
                                                         RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
                                                         scale=T) #scale=input$nn.scale crashes it)
+    #if (!is.null(nn.sites$data)){
+    #  temp<-data.frame(nn.sites$data$TF.matrix)
+    #  temp<-temp[rownames(all.data$data),]
+    #  all.data$data<-data.frame(cbind(all.data$data,temp))
+    #}
+    
   })
   
   output$out_nn.axis1<-renderUI({
@@ -1003,65 +1051,70 @@ shinyServer(function(input, output, session) {
     }
   })
   output$nn.ord<-renderPlot({
-    if(is.null(input$in_nn.axis1) | is.null(input$in_nn.axis2)){return(NULL)}
-    
-    validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
-    #validate(need(!is.null(nn.sites$data),"Insufficient Information"))
-    validate(need(!is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2),""))
-    validate(need(!is.null(input$in_test_site_select),""))
-    validate(need(input$nn_method!="User Selected",""))
-    
-    if (input$nn_method=="RDA-ANNA"){
-      validate(need(!is.null(input$in_metric.select),"Select 3 or more indicator metrics"))
-      validate(need(length(input$in_metric.select)>=3,"Select 3 or more indicator metrics"))
-    }
-    
-    
-    if (input$in_test_site_select!="None"){
-      hull<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
-      hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
-      hull<-hull[hull$Ref==T,]
-      hull<-hull[chull(hull[,c(input$in_nn.axis1,input$in_nn.axis2)]),]
+    if (!is.null(input$in_test_site_select) & !is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2)){
       
-      test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_test_site_select,]
+      if(is.null(input$in_nn.axis1) | is.null(input$in_nn.axis2)){return(NULL)}
       
-      reference.sites<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
-      reference.sites$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
-      reference.sites<-reference.sites[reference.sites$Ref==T,]
-    }
-
-    p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=input$in_nn.axis1, y=input$in_nn.axis2)) + 
-      geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
-      geom_point(aes(color=Class))  + theme_bw() + 
-      labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method)#,
-           #subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
-           ) +
-      xlab(paste0(input$in_nn.axis1)) + 
-      ylab(paste0(input$in_nn.axis2)) +
-      coord_cartesian(xlim = nn.ord.ranges$x, ylim = nn.ord.ranges$y, expand = TRUE)
-
-
-    if (input$nnplot.hab.points){
-      p1<- p1 + geom_point(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
-    }
-    
-    if (input$nnplot.hab.names){
-      p1<- p1 + geom_text(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
+      validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+      #validate(need(!is.null(nn.sites$data),"Insufficient Information"))
+      validate(need(!is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2),""))
+      validate(need(!is.null(input$in_test_site_select),""))
+      validate(need(input$nn_method!="User Selected",""))
+      #validate(need(!is.null(input$input$in_test_site_select),""))
       
+      
+      if (input$nn_method=="RDA-ANNA"){
+        validate(need(!is.null(input$in_metric.select),"Select 3 or more indicator metrics"))
+        validate(need(length(input$in_metric.select)>=3,"Select 3 or more indicator metrics"))
+      }
+      
+      
+      if (input$in_test_site_select!="None"){
+        hull<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
+        hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
+        hull<-hull[hull$Ref==T,]
+        hull<-hull[chull(hull[,c(input$in_nn.axis1,input$in_nn.axis2)]),]
+        
+        test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_test_site_select,]
+        
+        reference.sites<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
+        reference.sites$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]))
+        reference.sites<-reference.sites[reference.sites$Ref==T,]
+      }
+      
+      p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=input$in_nn.axis1, y=input$in_nn.axis2)) + 
+        geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
+        geom_point(aes(color=Class))  + theme_bw() + 
+        labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method)#,
+             #subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
+        ) +
+        xlab(paste0(input$in_nn.axis1)) + 
+        ylab(paste0(input$in_nn.axis2)) +
+        coord_cartesian(xlim = nn.ord.ranges$x, ylim = nn.ord.ranges$y, expand = TRUE)
+      
+      
+      if (input$nnplot.hab.points){
+        p1<- p1 + geom_point(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
+      }
+      
+      if (input$nnplot.hab.names){
+        p1<- p1 + geom_text(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
+        
+      }
+      
+      if (input$in_test_site_select!="None"){
+        if (input$nnplot.hull){
+          p1<- p1 + geom_polygon(data=hull[,c(input$in_nn.axis1,input$in_nn.axis2)],alpha=0.5)
+        }
+        if (input$nnplot.refnames){
+          p1<- p1 + geom_text(data=reference.sites[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(reference.sites))
+        }
+        if (input$nnplot.testsite){
+          p1<- p1 + geom_point(data=test.site[,c(input$in_nn.axis1,input$in_nn.axis2)],size=3)
+        }
+      }
+      p1
     }
-    
-    if (input$in_test_site_select!="None"){
-      if (input$nnplot.hull){
-        p1<- p1 + geom_polygon(data=hull[,c(input$in_nn.axis1,input$in_nn.axis2)],alpha=0.5)
-      }
-      if (input$nnplot.refnames){
-        p1<- p1 + geom_text(data=reference.sites[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(reference.sites))
-      }
-      if (input$nnplot.testsite){
-        p1<- p1 + geom_point(data=test.site[,c(input$in_nn.axis1,input$in_nn.axis2)],size=3)
-      }
-    }
-    p1
   })
   
   output$nn.dist<-renderPlot({
@@ -1091,7 +1144,7 @@ shinyServer(function(input, output, session) {
     }
   })
   
-
+  
 
   #########################################################
   #TSA Calculations
@@ -1145,7 +1198,8 @@ shinyServer(function(input, output, session) {
     input$nn.constant,
     input$nn_method,
     input$in_metric.select,
-    input$nn.scale
+    input$nn.scale,
+    input$useMD
     ), {
       if (input$in_test_site_select=="None"||is.null(input$in_test_site_select)){
         tsa.results$output.list<-NULL
@@ -1231,53 +1285,530 @@ shinyServer(function(input, output, session) {
     
     output2<-t(output1$tsa.results)
     tsa.results$output.list<-output1
-    #eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
-
-    #for (i in which(all.data$data[,reftest.ID.cols$data]==0)){
-    #  test.site<-rownames(all.data$data)[i]
-    #  if (input$nn_method=="ANNA"){
-    #    validate(need(!is.null(additional.metrics$data),""))
-    #    Test<-temp[i,colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
-    #    
-    #    add.met.test<-data.frame(additional.metrics$data[which(names(additional.metrics$data)%in%test.site)])
-    #    colnames(add.met.test)<-c("O:E","Bray-Curtis","CA1","CA2")
-    #    
-    #    Test<-cbind(Test,add.met.test[nrow(add.met.test),])
-    #    
-    #    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-    #    Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Summary.Metrics)]
-    #    Reference<-cbind(Reference,add.met.test[1:(nrow(add.met.test)-1),])
-    #  }
-    #  if (input$nn_method=="RDA-ANNA"){
-    #    validate(need(!is.null(additional.metrics$data),""))
-    #    Test<-temp[i,input$in_metric.select]
-    #    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-    #    Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
-    #  }
-    #  
-    #  if (input$tsa_weighted){
-    #    distance<-nn.sites$data$distance.matrix[rownames(Test),]
-    #    distance<-distance[rownames(Reference)]
-    #  } else {
-    #    distance<-NULL
-    #  }
-    #  
-    #  output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=Test,
-    #                                               Reference=Reference,
-    #                                               outlier.rem=input$tsa_outlier_rem,
-    #                                               outbound=input$tsa_outbound,
-    #                                               m.select=input$useMD,
-    #                                               distance=distance
-    #  ), silent=T)
-    #  
-    #  validate(need(class(output1)!="try-error",output1[1]))
-    #  
-    #  output2[i,]<-t(output1$tsa.results)
-    #  
-    #  eval(parse(text=paste0("tsa.results$output.list$'",rownames(Test),"'<-output1")))
-    #}
     tsa.results$data<-output2
   })
+  
+  observeEvent(input$TSA_results_modal,{
+    tsa.object<-tsa.results$output.list
+    showModal(modalDialog(
+      title="TSA Results",
+      renderPrint(tsa.object),
+      hr(),
+      h4("Selected Metrics"),
+      renderPrint(tsa.object$selected.metrics),
+      h4("Significant Metrics"),
+      renderPrint(tsa.object$general.results[4,]),
+      size="l",
+      easyClose = T
+    ))
+  })
+  
+  observeEvent(input$NN_results_modal,{
+    tsa.object<-tsa.results$output.list
+    
+    showModal(modalDialog(
+      title="Nearest-Neighbour Model Results",
+      renderPrint(nn.sites$data),
+      hr(),
+      h4("Reference Set"),
+      renderPrint(tsa.object$general.results[2,]),
+      hr(),
+      h4("Ordination Results"),
+      renderPrint(nn.sites$data$ordination),
+      hr(),
+      h4("Distances"),
+      renderPrint(nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_test_site_select,]),
+      hr(),
+      h4("Inclusions"),
+      renderPrint(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_test_site_select,]),
+      hr(),
+      box(title="Ordination Results (detailed)", width=12, collapsible = T, collapsed = T,
+          renderPrint(summary(nn.sites$data$ordination))
+      ),
+      size="l",
+      easyClose = T
+    ))
+  })
+  
+  #########################################################
+  #TSA- batch
+  ########################################################
+  
+  output$out_metric.select_b<-renderUI({
+    validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
+    
+    if(input$nn_method_b=="ANNA" & input$metdata==F){
+      selectInput("in_metric.select_b","", multiple = T,selectize = F, size=15,
+                  choices=c(colnames(bio.data$data$Summary.Metrics),
+                            "O:E","Bray-Curtis","CA1","CA2"), 
+                  selected=c(colnames(bio.data$data$Summary.Metrics),
+                             "O:E","Bray-Curtis","CA1","CA2")
+      )
+    } else {
+      selectInput("in_metric.select_b","", multiple = T,selectize = F, size=15,
+                  choices=colnames(bio.data$data$Summary.Metrics)
+      )
+    }
+  })
+  
+  additional.metrics_b<-reactiveValues(data=NULL,output.list=NULL) #create a list of tables of additional metrics at reference sites
+  tsa.results_b<-reactiveValues(data=NULL,output.list=NULL) #create a list of tsa.test objects
+  tsa.batch.outout<-reactiveValues(data=NULL) #dataset for downloading
+  
+  observeEvent(c(
+    input$tsa_batch_go
+  ), {
+    withProgress(message="Working", value=0, { # Will this work?
+      if (input$nn_method_b=="User Selected" & input$tsa_batch_go>1) {
+        tsa.results_b$output.list<-NULL
+        tsa.results_b$data<-NULL
+        additional.metrics_b<-NULL
+        showModal(modalDialog(title="Error",
+                              helpText("User Matched Reference Sites not yet implimented"),
+                              easyClose = T,
+                              size="s"
+                              ))
+        validate(need(F, "User matched reference sites not yet implimented"))
+      }
+      if (is.null(input$in_metric.select_b) & input$tsa_batch_go>1){
+        tsa.results_b$output.list<-NULL
+        tsa.results_b$data<-NULL
+        additional.metrics_b<-NULL
+        showModal(modalDialog(title="Error",
+                              helpText("Must select indicator metrics"),
+                              easyClose = T,
+                              size="s"
+        ))
+        validate(need(F, ""))
+      }
+      
+      if (length(input$in_metric.select_b)<2 & input$tsa_batch_go>1){
+        tsa.results_b$output.list<-NULL
+        tsa.results_b$data<-NULL
+        additional.metrics_b<-NULL
+        showModal(modalDialog(title="Error",
+                              helpText("Must select more than 2 indicator metrics"),
+                              easyClose = T,
+                              size="s"
+        ))
+        validate(need(F, ""))
+      }
+      
+      if (input$nn_method_b!="User Selected"){
+        validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+        validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
+        validate(need(input$nn_method_b=="RDA-ANNA" | input$nn_method=="ANNA","User matched reference sites not yet implimented"))
+        validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
+        validate(need(input$nn.k_b>=3|input$nn_useDD_b,"Need k>=3 or use Distance-Decay site selection"))
+        if (input$nn_method=="RDA-ANNA"){
+          validate(need(length(input$in_metric.select_b)>=3,"Select Metricsat least 3 metrics"))
+          validate(need(length(input$in_metric.select_b)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
+          validate(need(!any(input$in_metric.select_b%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
+          validate(need(!any(is.na(bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select_b])),"NAs not allowed in biological data"))
+        }
+        nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],
+                                                            Reference=habitat.by.site$data[reftest.by.site$data==1,],
+                                                            k=if (is.numeric(input$nn.k_b)){input$nn.k_b} else {NULL},
+                                                            distance.decay=input$nn_useDD_b,
+                                                            dd.factor=input$nn.factor_b,
+                                                            dd.constant=input$nn.constant_b,
+                                                            RDA.reference= if (input$nn_method_b=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select_b]} else {NULL},
+                                                            scale=T) #scale=input$nn.scale crashes it)
+        if (!is.null(nn.sites$data)){
+          temp<-data.frame(nn.sites$data$ordination.scores)
+          temp<-temp[rownames(all.data$data),]
+          all.data$data<-data.frame(cbind(all.data$data,temp))
+        }
+        ref.set<-nn.sites$data$TF.matrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
+        ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
+        
+      }
+      
+      temp.all.data<-all.data$data
+      colnames(temp.all.data)<-gsub(".",";",colnames(temp.all.data),fixed = T)
+      temp.all.data<-temp.all.data[rownames(taxa.by.site$data),]
+
+      if (input$nn_method_b=="ANNA"){
+        additional.metrics_b$data<-data.frame(matrix(nrow=length(which(reftest.by.site$data==0)),ncol=4))
+        rownames(additional.metrics_b$data)<-rownames(reftest.by.site$data)[reftest.by.site$data==0]
+        colnames(additional.metrics_b$data)<-c("O:E","Bray-Curtis","CA1","CA2")
+      }
+      tsa.results_b$data<-data.frame(matrix(nrow=length(which(reftest.by.site$data==0)),ncol=5))
+      rownames(tsa.results_b$data)<-rownames(reftest.by.site$data)[reftest.by.site$data==0]
+      colnames(tsa.results_b$data)<-c("TSA Impairment","Interval Test","Equivalence Test","Randomization p value","Test Site D2")
+      
+      for (i in 1:length(ref.set2)){
+        incProgress(1/length(ref.set2), detail = paste("In progress: ", names(ref.set2)[i]))
+        ref.set3<-ref.set2[i]
+        ref.set3[[1]][length(ref.set3[[1]])+1]<-names(ref.set3)
+        ref.set3<-ref.set3[[1]]
+        if (input$nn_method_b!="User Selected" & input$nn_method_b!="RDA-ANNA"){
+          add.mets<-BenthicAnalysistesting::add.met(Test=temp.all.data[names(ref.set2[i]),colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
+                                                    Reference = temp.all.data[ref.set2[[i]],colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
+                                                    original=F)
+          
+          i.mets<-cbind(temp.all.data[ref.set3,],add.mets)
+          colnames(i.mets)<-gsub(";",".",colnames(i.mets),fixed = T)
+          i.mets<-i.mets[,input$in_metric.select_b]
+          
+          additional.metrics_b$data[names(ref.set2)[i],]<-add.mets[nrow(add.mets),]
+          eval(parse(text=paste0("additional.metrics$output.list$'",names(ref.set2)[i],"'<-add.mets")))
+        } else {
+          i.mets<-temp.all.data[ref.set3,]
+          colnames(i.mets)<-gsub(";",".",colnames(i.mets),fixed = T)
+          i.mets<-i.mets[,input$in_metric.select_b]
+        }
+        
+        if (input$tsa_weighted){
+          distance<-nn.sites$data$distance.matrix[names(ref.set2)[i],]
+          distance<-distance[ref.set3]
+          distance<-distance[1:(length(distance)-1)]
+        } else {
+          distance<-NULL
+        }
+        
+        output1<-try(BenthicAnalysistesting::tsa.test.UI(Test=i.mets[nrow(i.mets),],
+                                                         Reference=i.mets[1:(nrow(i.mets)-1),],
+                                                         outlier.rem=input$tsa_outlier_rem_b,
+                                                         outbound=input$tsa_outbound_b,
+                                                         m.select=input$useMD_b,
+                                                         distance=distance
+        ), silent=T)
+        
+        if(class(output1)=="try-error"){
+          tsa.results$output.list<-output1
+          tsa.results$data<-c("Error","NA","NA","NA")
+        } else {
+          tsa.results_b$data[names(ref.set2)[i],]<-output1$tsa.results[1:5,]
+          eval(parse(text=paste0("tsa.results_b$output.list$'",names(ref.set2)[i],"'<-output1")))
+        }
+        
+      }
+      
+      if (input$nn_method_b=="ANNA"){
+        temp<-data.frame(additional.metrics_b$data)
+        temp<-temp[rownames(all.data$data),]
+        all.data$data<-data.frame(cbind(all.data$data,temp))
+        rm(temp)
+      }
+      
+      tsa.results_b$data$`TSA Impairment`<-as.factor(tsa.results_b$data$`TSA Impairment`)
+      tsa.results_b$data$`Interval Test`<-as.numeric(tsa.results_b$data$`Interval Test`)
+      tsa.results_b$data$`Equivalence Test`<-as.numeric(tsa.results_b$data$`Equivalence Test`)
+      tsa.results_b$data$`Randomization p value`<-as.numeric(tsa.results_b$data$`Randomization p value`)
+      tsa.results_b$data$`Test Site D2`<-as.numeric(tsa.results_b$data$`Test Site D2`)
+      
+      temp<-data.frame(tsa.results_b$data)
+      temp<-temp[rownames(all.data$data),]
+      all.data$data<-data.frame(cbind(all.data$data,temp))
+      rm(temp)
+      
+      tsa.batch.outout$data<-data.frame(tsa.results_b$data)
+      tsa.batch.outout$data$Selected.Metrics<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][3,])
+      tsa.batch.outout$data$Significant.Metrics<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][4,])
+      tsa.batch.outout$data$Reference.Set<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][2,])
+    })
+  })
+  
+  output$download_tsa_batch<-downloadHandler(filename = function() { paste("Batch_Results-",input$inrawbioFile, sep='') },
+                                            content = function(file) {write.csv(tsa.batch.outout$data,file,row.names = T)})
+  
+  observeEvent(input$TSA_results_modal_b,{
+    tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+    tsa.object<-tsa.object[[1]]
+    showModal(modalDialog(
+      title="TSA Results",
+      renderPrint(tsa.object),
+      hr(),
+      h4("Selected Metrics"),
+      renderPrint(tsa.object$selected.metrics),
+      h4("Significant Metrics"),
+      renderPrint(tsa.object$general.results[4,]),
+      size="l",
+      easyClose = T
+    ))
+  })
+  
+  observeEvent(input$NN_results_modal_b,{
+    tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+    tsa.object<-tsa.object[[1]]
+    
+    showModal(modalDialog(
+      title="Nearest-Neighbour Model Results",
+      renderPrint(nn.sites$data),
+      hr(),
+      h4("Reference Set"),
+      renderPrint(tsa.object$general.results[2,]),
+      hr(),
+      h4("Ordination Results"),
+      renderPrint(nn.sites$data$ordination),
+      hr(),
+      h4("Distances"),
+      renderPrint(nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_batch_test_result_select,]),
+      hr(),
+      h4("Inclusions"),
+      renderPrint(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_batch_test_result_select,]),
+      hr(),
+      box(title="Ordination Results (detailed)", width=12, collapsible = T, collapsed = T,
+          renderPrint(summary(nn.sites$data$ordination))
+          ),
+      size="l",
+      easyClose = T
+    ))
+  })
+  
+  #########################################################
+  #TSA- batch outputs
+  ########################################################
+  output$tsa_bulk_table<-renderTable({
+    if (!is.null(input$in_batch_test_result_select)){
+      #sites<-data.frame(do.call(rbind,(strsplit(rownames(all.data$data),";"))))
+      #apply(sites,2,function(x)length(unique(x)))
+      t(table(all.data$data[all.data$data$Class=="Test","TSA.Impairment"]))
+    } else {
+      validate(need(F,"Must run Batch Mode First"))
+    }
+  })
+  
+  output$out_batch_test_result_select<-renderUI({
+    validate(need(any(colnames(all.data$data)=="Class"),""))
+    
+    selectInput("in_batch_test_result_select","",
+                choices=rownames(habitat.by.site$data)[reftest.by.site$data==0]
+                  #rownames(all.data$data)[all.data$data$Class=="Test"]#,
+                #selected=rownames(all.data$data[all.data$data$Class=="Test",])[1]
+                #choices=c("None",rownames(all.data$data[all.data$data$Class=="Test",]))
+    )
+  })
+  
+  output$tsa.result.printed_b<-renderUI({
+    if (!is.null(input$in_batch_test_result_select)){
+      tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+      tsa.object<-tsa.object[[1]]
+      #tsa.object<-tsa.results$output.list
+      
+      if (tsa.object$tsa.results["TSA Impairment",]=="Not Impaired"){
+        status="primary"
+        stat.col<-"blue"
+      }
+      if (tsa.object$tsa.results["TSA Impairment",]=="Possibly Impaired"){
+        status="warning"
+        stat.col<-"orange"
+      }
+      if (tsa.object$tsa.results["TSA Impairment",]=="Impaired"){
+        status="danger"
+        stat.col<-"red"
+      }
+      
+      box(width=10,title=h2(tsa.object$test.site),status=status,
+          infoBox(value=tsa.object$tsa.results["TSA Impairment",],title="Status",width=12, color=stat.col,icon=icon("heartbeat",lib="font-awesome"),fill=T),
+          fluidRow(valueBox(tsa.object$tsa.results["Test Site D2",],"Test site D2",width=4, color="light-blue",icon=icon("line-chart",lib="font-awesome")),
+                   valueBox(tsa.object$tsa.results["Interval Test",],"Interval Test",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome")),
+                   valueBox(tsa.object$tsa.results["Equivalence Test",],"Equivalence Test",width=4, color="light-blue",icon=icon("hashtag",lib="font-awesome"))
+          )
+      )
+    }
+  })
+  
+  output$tsa.circle.plot_b<-renderPlot({
+    if (!is.null(input$in_batch_test_result_select)){
+      tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+      tsa.object<-tsa.object[[1]]
+      #tsa.object<-tsa.results$output.list
+      
+      z.scores<-data.frame(tsa.object$z.scores)
+      z.scores$ref<-1
+      z.scores$ref[nrow(z.scores)]<-0
+      z.scores$ref<-as.factor(z.scores$ref)
+      z.scores$names<-rownames(z.scores)
+      
+      nRef<-length(which(z.scores$ref==1))
+      
+      Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
+      Biodiversity<-c("Richness","Simpson")
+      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Hydrology<-c("CEFI")
+      Habitat.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
+                        "Sprawler.Richness")
+      Feeding.Guilds<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                        "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
+                        "Gatherer.Richness")
+      
+      #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
+      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
+      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
+      rownames(plot.data)[3]<-input$in_batch_test_result_select
+      
+      for (i in as.character(colnames(plot.data))) {
+        try1<-try(eval(parse(text=paste0("data1<-z.scores[,colnames(z.scores)%in%",i, "]"))),silent=T)
+        if(class(try1)=="try-error"){
+          next()
+        }
+        eval(parse(text=paste0("data1<-z.scores[,colnames(z.scores)%in%",i, "]")))
+        if (is.data.frame(data1)){
+          are.nas<-unlist(apply(data1,2, function(x) !any(is.na(x)))) & unlist(apply(data1,2, function(x) IQR(x)>0))
+          if (sum(are.nas)==0) {
+            next()
+          }
+          if(sum(are.nas)==1){
+            data1<-data1[,are.nas]
+            tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+            tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
+          } else {
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
+            tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
+          }
+        } else {
+          are.nas<-!any(is.na(data1))
+          if (sum(are.nas)==0) {
+            next()
+          }
+          tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+          tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+          tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+          plot.data[3,i]<-tsa.NCPinterval
+        }
+      }
+      plot.data<-plot.data[,!is.na(plot.data[3,])]
+      validate(need(ncol(plot.data)>2,"Insufficient Metrics selected"))
+      fmsb::radarchart(plot.data, axistype=1 , 
+                       
+                       #custom polygon
+                       pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
+                       
+                       #custom the grid
+                       cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,100,length.out=5), cglwd=0.8,
+                       
+                       #custom labels
+                       vlcex=0.8 
+      )
+      
+    }
+  })
+  
+  output$tsa.metric.plot_b<-renderPlot({
+    if (!is.null(input$in_batch_test_result_select)){
+      #validate(need(!is.null(input$input$in_batch_test_result_select),""))
+      
+      tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+      tsa.object<-tsa.object[[1]]
+      #tsa.object<-tsa.results$output.list
+      
+      tsa.stand<-tsa.object$z.scores
+      nInd<-ncol(tsa.stand)
+      nRef<-nrow(tsa.stand)-1
+      
+      part.tsa<-if (!is.null(tsa.object$partial.tsa)) {tsa.object$partial.tsa} else {NULL}
+      all.met<-colnames(tsa.stand)
+      sel.met<-unlist(strsplit(substr(tsa.object$general.results["Selected Indicator Metrics",],1,(nchar(tsa.object$general.results["Selected Indicator Metrics",])-2)),split=", "))
+      
+      melt.ref<-reshape2::melt(tsa.stand[1:nRef,])
+      melt.ref$Group<-NA
+      melt.ref$Group[melt.ref$Var2%in%c("Richness","Simpson","Shannon","Percent.Dominance")]<-"Biodiversity"
+      melt.ref$Group[melt.ref$Var2%in%c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Isopoda","Percent.Coleoptera",
+                                        "Ephem.as.Baetidae","Percent.EPT","Percent.mEPT","Percent.ICHAEBO",
+                                        "EPT.Richness","Ephem.Richness","Percent.Ephem","Plec.Richness",
+                                        "Percent.Plec","Trich.Richness","Percent.Trich","EPT.per.EPT.and.Chir",
+                                        "Percent.Non.Chir.Dip","Trich.as.Hydropsychidae","Coleo.as.Elmidae","Percent.CIGH")]<-"Taxonomic"
+      melt.ref$Group[melt.ref$Var2%in%c("Intolerants.Richness" ,"Percent.Intolerants","HBI")]<-"Sensitivity"
+      melt.ref$Group[melt.ref$Var2%in%c("CEFI")]<-"Hydrology"
+      melt.ref$Group[melt.ref$Var2%in%c("Predator.Percent" ,"Predator.Richness",
+                                        "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                                        "Shredder.Richness","Shredder.Percent"
+                                        ,"Filterer.Percent","Filterer.Richness",
+                                        "Gatherer.Percent","Gatherer.Richness",
+                                        "ScraperGrazer.to.Shredder.Collector")]<-"Feeding Guilds"
+      melt.ref$Group[melt.ref$Var2%in%c("Clinger.Percent","Clinger.Richness","Burrower.Percent",
+                                        "Burrower.Richness","Sprawler.Percent","Sprawler.Richness",
+                                        "Burrower.to.Sprawler.Clinger")]<-"Habitat Guilds"
+      melt.ref$Group[melt.ref$Var2%in%c("O:E" ,"Bray-Curtis","CA1","CA2")]<-"Community Structure"
+      
+      p1<-ggplot(data=melt.ref) + theme_bw() +
+        geom_boxplot(data=melt.ref, aes(x=Var2,y=value, fill=Group), width=0.5) +
+        scale_fill_brewer(palette="Dark2") +
+        labs(title=paste0(input$in_batch_test_result_select," Indicator metrics")) +
+        theme(axis.text.x = element_text(angle = 65, hjust = 1), legend.position="right", strip.text.x = element_blank()) +
+        ylim(min(tsa.stand)*1.3, max(tsa.stand)*1.1) +
+        xlab("") + 
+        ylab("") +
+        geom_point(data=data.frame(x=levels(melt.ref$Var2)[which(colnames(tsa.stand)%in%sel.met)],y=tsa.stand[(nRef+1),sel.met]), aes(x=x,y=y), shape=1,fill="transparent",size=4) +
+        geom_point(data=data.frame(x=levels(melt.ref$Var2),y=tsa.stand[(nRef+1),]), aes(x=x,y=y), col="red")
+      
+      
+      if (any(part.tsa$p<0.05)) {
+        p1 <- p1 +geom_point(data=data.frame(x=levels(melt.ref$Var2)[which(colnames(tsa.stand)%in%rownames(part.tsa)[part.tsa$p<0.05])],y=rep(min(tsa.stand)*1.2,length(rownames(part.tsa)[part.tsa$p<0.05]))), aes(x=x,y=y), shape=8,size=2)
+      }
+      p1
+    }
+  })
+  
+  output$nn.ord_b<-renderPlot({
+    if (!is.null(input$in_batch_test_result_select)){
+      #validate(need(!is.null(input$input$in_batch_test_result_select),""))
+      
+      validate(need(input$nn_method_b!="User Selected",""))
+      
+      if (input$nn_method_b=="RDA-ANNA"){
+        validate(need(!is.null(input$in_metric.select_b),"Select 3 or more indicator metrics"))
+        validate(need(length(input$in_metric.select_b)>=3,"Select 3 or more indicator metrics"))
+      }
+      
+      if (input$in_batch_test_result_select!="None"){
+        hull<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
+        hull$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_batch_test_result_select,]))
+        hull<-hull[hull$Ref==T,]
+        hull<-hull[chull(hull[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])]),]
+        
+        test.site<-nn.sites$data$ordination.scores[rownames(nn.sites$data$ordination.scores)%in%input$in_batch_test_result_select,]
+        
+        reference.sites<-nn.sites$data$ordination.scores[nn.sites$data$ordination.scores$Class=="Reference",]
+        reference.sites$Ref<-data.frame(t(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_batch_test_result_select,]))
+        reference.sites<-reference.sites[reference.sites$Ref==T,]
+      }
+      
+      p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=colnames(nn.sites$data$ordination.scores)[1], y=colnames(nn.sites$data$ordination.scores)[2])) + 
+        geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
+        geom_point(aes(color=Class))  + theme_bw() + 
+        labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method_b)#,
+             #subtitle=if(input$in_batch_test_result_select!="None"){paste0(input$in_batch_test_result_select)} else {NULL}
+        )
+      
+      p1<- p1 + geom_polygon(data=hull[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])],alpha=0.5)
+      p1<- p1 + geom_text(data=reference.sites[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])], label=rownames(reference.sites))
+      p1<- p1 + geom_point(data=test.site[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])],size=3)
+      
+      p1
+    }
+  })
+  
+  output$nn.dist_b<-renderPlot({
+    if (!is.null(input$in_batch_test_result_select)){
+      
+      distances<-nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_batch_test_result_select,]
+      distances<-distances[order(distances)]
+      distances<-data.frame(distances)
+      nn.distances<-as.numeric(nn.sites$data$dd.number$dd.number[nn.sites$data$dd.number$sites%in%input$in_batch_test_result_select])
+      distances$Selected<-NA
+      distances$Selected[1:nn.distances]<-"Yes"
+      distances$Selected[(nn.distances+1):nrow(distances)]<-"No"
+      colnames(distances)[1]<-"Distance"
+      
+      p2<-ggplot()+geom_bar(data=distances,aes(y=Distance, x=1:nrow(distances), fill=Selected, color=Selected), stat="identity")+theme_bw()+
+        labs(title=paste0("Nearest-neighbour Distances by ",input$nn_method_b),
+             subtitle=paste0(input$in_batch_test_result_select)) +
+        xlab("Distance") + 
+        ylab("")
+      
+      p2
+      
+    }
+  })
+  
   
   #########################################################
   #TSA Plots
@@ -1565,135 +2096,117 @@ shinyServer(function(input, output, session) {
   #Mapping
   #########################################################
 
-  output$map_pointcolselect_out<-renderUI({
-    validate(
-      need(input$map_pointcolgroup!="None","")
-    )
-    vars<-NULL
-    if (input$map_pointcolgroup=="Habitat"){
-      validate(
-        need(!is.null(habitat.by.site$data),"")
-      )
-      vars<-colnames(habitat.by.site$data)
-    }
-    if (input$map_pointcolgroup=="Taxa"){
-      validate(
-        need(!is.null(taxa.by.site$data),"")
-      )
-      vars<-colnames(taxa.by.site$data)
-    }
-    if (input$map_pointcolgroup=="Metrics"){
-      validate(
-        need(!is.null(bio.data$data$Summary.Metrics),"")
-      )
-      vars<-colnames(bio.data$data$Summary.Metrics)
-    }
-    selectInput("map_pointcolselect_in",label="Attribute",choices=vars)
-  })
-  
+
   output$out.map_chart_variables<-renderUI({
-    #validate(
-    #  need(!is.null(all.data$data),"")
-    #)
+    validate(
+      need(!is.null(all.data$data),"")
+    )
     selectInput("in.map_chart_variables",label="Chart Variables",choices=list(
-      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
       Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-      Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
-      Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)]
-    ),multiple = TRUE)
+      #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+      #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    ),multiple = FALSE)
   })
   
-  map_icons<-reactiveValues(data=NULL)
-  
-  observe({
-    map_icons$data<-NULL
+  output$out.map_time_variables<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    validate(
+      need(input$time.ID!="","")
+    )
+    radioButtons("in.map_time_variables",label="Time",
+                 choices=c("All",unique(all.data$data[,input$time.ID])),
+                 selected="All")
   })
   
-  
-  output$mymap <- renderLeaflet({
+
+  output$mymap<-renderLeaflet({
     validate(
       need(!is.null(coordinates.by.site$data.unique),"")
     )
-    m <- leaflet()
-    if (input$basemap_input=="Street"){
-      #m <- addTiles(m)
-      m<-addProviderTiles(map=m,
-                          provider=providers$Esri.WorldTopoMap)
-    }
-    if (input$basemap_input=="Satellite"){
-      m<-addProviderTiles(map=m,
-                          provider=providers$Esri.WorldImagery)
-      
-      #m <- addTiles(m,urlTemplate = "https://mts1.google.com/vt/lyrs=s&hl=en&src=app&x={x}&y={y}&z={z}&s=G", attribution = 'Google')
-    }
-    if (input$map_admin==T){
-      m<-addProviderTiles(map=m,
-                          provider=providers$OpenMapSurfer.AdminBounds)
-    }
     
-    if (input$map_pointtype=="pie"|input$map_pointtype=="bar"){
-      m<-addMinicharts(
-        map = m,
-        lng=all.data$data$east,
-        lat=all.data$data$north,
-        layerId=all.data$data[,colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID],
-        width = input$map_chart_site,
-        height = input$map_chart_site,
-        #maxValues<-aggregate(feeding.data$data.reduced,by=list(coordinates.by.site$data.all[,input$time.ID]),max),
-        type=input$map_pointtype,
-        chartdata=all.data$data[,colnames(all.data$data)%in%input$in.map_chart_variables],
-        time=all.data$data[,input$time.ID],
-        showLabels = T,
-        legendPosition = "bottomleft"#,
-        #colorPalette=colorRamps::primary.colors(ncol(data[colnames(data)%in%colnames(feeding.data$data.reduced)]))
-      )
+    map.coordinates<-all.data$data
+    
+    if(is.null(is.null(map.coordinates$east))){
+      eval(parse(text=paste0("coordinates(map.coordinates) <- ~",paste0(coord.ID.cols$east),"+",paste0(coord.ID.cols$north))))
+    } else {
+      coordinates(map.coordinates) <- ~east+north
     }
+    proj4string(map.coordinates)<-CRS("+init=epsg:4326")
+    
+    if (input$time.ID!="" & !is.null(input$in.map_time_variables)){
+      if (input$in.map_time_variables!="All"){
+        map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$time.ID]==input$in.map_time_variables)
+        map.coordinates<-subset(map.coordinates,!is.na(map.coordinates@data[,input$in.map_chart_variables]))
+      }
+    }
+
+    Map = sf::st_as_sf(map.coordinates)
+    m<-mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter"))
     
     if (input$map_pointtype=="Points"){
-      m <- addMarkers(map=m,
-                      lng=all.data$data$east,
-                      lat=all.data$data$north,
-                      label=rownames(coordinates.by.site$data.unique)
+      m<- m + mapview(Map,zcol=input$in.map_chart_variables,legend=input$map_legend,
+                      col.region=colorRampPalette(brewer.pal(9, input$map_pointcol))
       )
     }
     
-    m
-    })
+    m@map
+  })
   
-  #########################################################
-  #    Map markers
-  #########################################################
+  #output$mymap <- renderLeaflet({
+  #  validate(
+  #    need(!is.null(coordinates.by.site$data.unique),"")
+  #  )
+  #  m <- leaflet()
+  #  if (input$basemap_input=="Street"){
+  #    #m <- addTiles(m)
+  #    m<-addProviderTiles(map=m,
+  #                        provider=providers$Esri.WorldTopoMap)
+  #  }
+  #  if (input$basemap_input=="Satellite"){
+  #    m<-addProviderTiles(map=m,
+  #                        provider=providers$Esri.WorldImagery)
+  #    
+  #    #m <- addTiles(m,urlTemplate = "https://mts1.google.com/vt/lyrs=s&hl=en&src=app&x={x}&y={y}&z={z}&s=G", attribution = 'Google')
+  #  }
+  #  if (input$map_admin==T){
+  #    m<-addProviderTiles(map=m,
+  #                        provider=providers$OpenMapSurfer.AdminBounds)
+  #  }
+  #  
+  #  if (input$map_pointtype=="pie"|input$map_pointtype=="bar"){
+  #    m<-addMinicharts(
+  #      map = m,
+  #      lng=all.data$data$east,
+  #      lat=all.data$data$north,
+  #      layerId=all.data$data[,colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID],
+  #      width = input$map_chart_site,
+  #      height = input$map_chart_site,
+  #      #maxValues<-aggregate(feeding.data$data.reduced,by=list(coordinates.by.site$data.all[,input$time.ID]),max),
+  #      type=input$map_pointtype,
+  #      chartdata=all.data$data[,colnames(all.data$data)%in%input$in.map_chart_variables],
+  #      time=all.data$data[,input$time.ID],
+  #      showLabels = T,
+  #      legendPosition = "bottomleft"#,
+  #      #colorPalette=colorRamps::primary.colors(ncol(data[colnames(data)%in%colnames(feeding.data$data.reduced)]))
+  #    )
+  #  }
+  #  
+  #  if (input$map_pointtype=="Points"){
+  #    m <- addMarkers(map=m,
+  #                    lng=all.data$data$east,
+  #                    lat=all.data$data$north,
+  #                    label=rownames(coordinates.by.site$data.unique)
+  #    )
+  #  }
+  #  
+  #  m
+  #  })
   
-  #observe({
-  #  if (input$map_pointtype=="pie"|input$map_pointtype=="bar") {
-  #    data <- data.frame(cbind(coordinates.by.site$data.all,feeding.data$data.reduced))
-  #    data <- data.frame(merge(data,missing.sampling.events$full.data,all=T))
-  ##    
-  #    leafletProxy("mymap", session) %>%
-  #      updateMinicharts(
-  #        layerId=data[,(colnames(coordinates.by.site$data.all)%in%site.ID.cols$data & !colnames(coordinates.by.site$data.all)%in%input$time.ID)],
-  #        chartdata = data[,colnames(data)%in%colnames(feeding.data$data.reduced)],
-  #        #maxValues = maxValue,
-  #        time = data[,colnames(data)%in%input$time.ID],
-  ##        type = "pie",
-  #        showLabels = T,
-  #        legendPosition = "bottomleft"
-  #      )
-      
-  #  } 
-    
-    #maxValue <- max(as.matrix(data))
-    
-  #})
-  #pie.charts <- pie(, data = meuse@data)
-  #p <- mget(rep("p", length(meuse)))
-  
-  #pie.charts <- lapply(1:length(p), function(i) {
-  #  clr[i] <- "red"
-  #  update(p[[i]], col = clr)
-  #})
-  
+
   
   #########################################################
   #Hold

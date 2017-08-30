@@ -11,7 +11,6 @@ library(leaflet.minicharts)
 #library(tcltk)
 #library(vegan)
 
-
 ##################################################
 # Header
 ##################################################
@@ -30,41 +29,64 @@ header <- shinydashboard::dashboardHeader(
 # Sidebar
 ##################################################
 sidebar <- shinydashboard::dashboardSidebar(
-  sidebarMenu(id = "sidebarmenu",
-              useShinyjs(),
-              menuItem("Introduction", tabName = "introduction", icon = icon("list-alt")#,
-                       #menuSubItem("Details",tabName = "Details")
-              ),
-              menuItem("Data Input", icon = icon("th"), tabName = "datainput",
-                       menuSubItem("Raw Data upload",tabName = "rawdatainput",icon=NULL),
-                       conditionalPanel("input.sidebarmenu === 'rawdatainput'",
-                                        useShinyjs(),
-                                        fileInput(inputId="inrawbioFile",multiple = FALSE, label = h5("Choose CSV file"),accept=c(".csv",".txt")),
-                                        checkboxInput("metdata",label=h5("Input data are metrics"),value=F),
-                                        radioButtons(inputId="rawFormat", label = h5("Input File Format"),choices = list("None Selected"=0,"Long"="Long" ,"Wide"="Wide" ),inline=F, selected = 0),
-                                        conditionalPanel("output.finalizeRaw==true",
-                                                         actionButton("finalize_raw","Finalize"),
-                                                         actionButton("clear_all","Clear")
+  conditionalPanel(condition="output.loggedin1", 
+                   sidebarMenu(id = "sidebarmenu",
+                               useShinyjs(),
+                               menuItem("Introduction", tabName = "introduction", icon = icon("list-alt")#,
+                                        #menuSubItem("Details",tabName = "Details")
+                               ),
+                               menuItem("Data Input", icon = icon("th"), tabName = "datainput",
+                                        menuSubItem("Raw Data upload",tabName = "rawdatainput",icon=NULL),
+                                        conditionalPanel("input.sidebarmenu === 'rawdatainput'",
+                                                         useShinyjs(),
+                                                         fileInput(inputId="inrawbioFile",multiple = FALSE, label = h5("Choose CSV file"),accept=c(".csv",".txt")),
+                                                         checkboxInput("metdata",label=h5("Input data are metrics"),value=F),
+                                                         radioButtons(inputId="rawFormat", label = h5("Input File Format"),choices = list("None Selected"=0,"Long"="Long" ,"Wide"="Wide" ),inline=F, selected = 0),
+                                                         conditionalPanel("output.finalizeRaw==true",
+                                                                          actionButton("finalize_raw","Finalize"),
+                                                                          actionButton("clear_all","Clear")
+                                                         )
+                                        ),
+                                        menuSubItem("Metric Transformations",tabName = "transSummaryMetrics",icon=NULL),
+                                        menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL),
+                                        conditionalPanel("input.sidebarmenu === 'userMatchRef'",
+                                                         useShinyjs(),
+                                                         fileInput(inputId="inUserMatchRefFile",multiple = FALSE, label = h5("Choose CSV file"),accept=c(".csv",".txt"))
+                                                         )
+                               ),
+                               menuItem("Mapping",tabName="Mapping", icon=icon("map"),
+                                        menuSubItem("Setup",tabName = "map_options",icon=NULL),
+                                        conditionalPanel("input.sidebarmenu === 'map_options'",
+                                                         selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points")),
+                                                         conditionalPanel("input.map_pointtype ='Points'",
+                                                                          selectInput("map_pointcol","Colours", 
+                                                                                      choices=list(
+                                                                                        Sequential=c("Blues", "BuGn", "BuPu", "GnBu", "Greens", "Greys", "Oranges",
+                                                                                                     "OrRd", "PuBu", "PuBuGn", "PuRd", "Purples", "RdPu" ,"Reds" ,"YlGn" ,
+                                                                                                     "YlGnBu", "YlOrBr" ,"YlOrRd"),
+                                                                                        Diverging=c("BrBG", "PiYG", "PRGn", "PuOr", "RdBu", "RdGy", "RdYlBu", "RdYlGn", "Spectral"))
+                                                                          )
+                                                         ),
+                                                         uiOutput("out.map_chart_variables"),
+                                                         checkboxInput("map_legend", "Show Legend?", value=T),
+                                                         uiOutput("out.map_time_variables")
                                         )
-                       ),
-                       menuSubItem("Metric Transformations",tabName = "transSummaryMetrics",icon=NULL),
-                       menuSubItem("User Matched Reference Sites",tabName = "userMatchRef",icon=NULL)
-              ),
-              menuItem("Mapping",tabName="Mapping", icon=icon("map")
-              ),
-              menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
-                       menuSubItem("Setup",tabName = "explorationSetup",icon=NULL)
-              ),
-              menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
-                       menuSubItem("NN and TSA",tabName="RCA_sub",icon=NULL),
-                       conditionalPanel("input.sidebarmenu === 'RCA_sub'",
-                                        uiOutput("out_test.site.select")
-                       )
-                       
-              ),
-              menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
-                       menuSubItem("Setup",tabName = "TrendsSetup",icon=NULL)
-              )
+                               ),
+                               menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
+                                        menuSubItem("Setup",tabName = "explorationSetup",icon=NULL)
+                               ),
+                               menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
+                                        menuSubItem("Single",tabName="RCA_sub",icon=NULL),
+                                        conditionalPanel("input.sidebarmenu === 'RCA_sub'",
+                                                         uiOutput("out_test.site.select")
+                                        ),
+                                        menuSubItem("Batch",tabName="RCA_sub_batch",icon=NULL)
+                                        
+                               ),
+                               menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
+                                        menuSubItem("Setup",tabName = "TrendsSetup",icon=NULL)
+                               )
+                   )
   )
 )
 
@@ -123,7 +145,9 @@ body <- shinydashboard::dashboardBody(
                                   ),
                                   box(title="Known Bugs",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
                                       helpText("- none")
-                                  )
+                                  )#,
+                                  #actionButton("savestate","Save state"),
+                                  #actionButton("loadstate","Load state")
                            )
           ),
           
@@ -314,48 +338,44 @@ body <- shinydashboard::dashboardBody(
           # User Matched Reference Sites
           ##################################################
           
-          
           conditionalPanel("input.sidebarmenu === 'userMatchRef'",
-                           h5("User Matched Reference Sites"),
-                           helpText("This feature is still in Development"),
-                           verbatimTextOutput("testout1"),
-                           verbatimTextOutput("testout3"),
-                           DT::dataTableOutput("testout2")
+                           uiOutput("out_usermatch.refsites")
           ),
           
           ##################################################
           # Mapping
           ##################################################
-          conditionalPanel("input.sidebarmenu === 'Mapping'",
-                           leafletOutput("mymap",height = 800),
+          conditionalPanel("input.sidebarmenu === 'map_options'",
+                           leafletOutput("mymap",height = 800)
+                           #leafletOutput("mymap",height = 800),
                            
-                           absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
-                                         draggable = F, top = 80, left = "auto", right = 40, bottom = "auto",
-                                         width = 250, height = "auto",
-                                         box(title=NULL,width=12,background= "olive",
-                                             h3("Controls"),
-                                             radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
-                                             checkboxInput("map_admin",label="Administrative Boundaries"),
-                                             hr(),
-                                             selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points","Pie Chart"="pie", "Bar Chart"="bar")),
-                                             hr(),
-                                             conditionalPanel("input.map_pointtype == 'pie' || input.map_pointtype == 'bar'",
-                                                              sliderInput("map_chart_site","Chart Size", min=1,max=100,value=45),
-                                                              uiOutput("out.map_chart_variables"),
-                                                              hr()
-                                                              
-                                             ),
-                                             conditionalPanel("input.map_pointtype == 'Points'",
-                                                              selectInput("map_pointcolgroup", "Colour",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
-                                                              uiOutput("map_pointcolselect_out")
-                                             )
-                                         )
-                           )
+                           #absolutePanel(id = "controls", class = "panel panel-default", fixed = F,
+                          #               draggable = F, top = 80, left = "auto", right = 40, bottom = "auto",
+                          #               width = 250, height = "auto",
+                          #               box(title=NULL,width=12,background= "olive",
+                          #                   h3("Controls"),
+                          #                   radioButtons("basemap_input",label="Basemap",choices=c("Street","Satellite")),
+                          #                   checkboxInput("map_admin",label="Administrative Boundaries"),
+                          #                   hr(),
+                          #                   selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points","Pie Chart"="pie", "Bar Chart"="bar")),
+                          #                   hr(),
+                          #                   conditionalPanel("input.map_pointtype == 'pie' || input.map_pointtype == 'bar'",
+                          #                                    sliderInput("map_chart_site","Chart Size", min=1,max=100,value=45),
+                          #                                    uiOutput("out.map_chart_variables"),
+                          #                                    hr()
+                          #                                    
+                          #                   ),
+                          #                   conditionalPanel("input.map_pointtype == 'Points'",
+                          #                                    selectInput("map_pointcolgroup", "Colour",choices=c("None","Habitat","Taxa","Metrics","Impairment")),
+                          #                                    uiOutput("map_pointcolselect_out")
+                          #                   )
+                          #               )
+                          # )
                            
           ),
-
+          
           ##################################################
-          # RCA
+          # RCA - Single
           ##################################################
           conditionalPanel("input.sidebarmenu === 'RCA_sub'",
                            fluidRow(
@@ -371,7 +391,8 @@ body <- shinydashboard::dashboardBody(
                                                                             id = "nn.ord_brush",
                                                                             resetOnNew = TRUE
                                                                           )),
-                                                               helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out")
+                                                               helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out"),
+                                                               actionLink("NN_results_modal","Nearest-Neighbour Model Results") #Need to add this
                                                         ),
                                                         column(width=4,
                                                                box(width=12,
@@ -394,25 +415,27 @@ body <- shinydashboard::dashboardBody(
                                                         )
                                                       )
                                                ),
-                                               column(width=4,
-                                                      box(title="Metrics",width=12,
+                                               box(title="Metric Selection",width=4,
+                                                   column(width=12,
                                                           #conditionalPanel("input.nn_method=='ANNA'",
-                                                                           checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
+                                                          checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
                                                           #)
                                                           ,
                                                           uiOutput("out_metric.select")
-                                                      )
+                                                   )
+                                                   
                                                )
                                              ),
+                                             hr(),
                                              fluidRow(
-                                               column(width=9,
-                                                      column(width=3,
+                                               box(title="Nearest-Neighbour Options",width=5,
+                                                      column(width=6,
                                                              selectInput("nn_method","NN Method", multiple=F,selectize=F,
                                                                          choices=c("ANNA","RDA-ANNA","User Selected")),
                                                              numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
                                                              checkboxInput("nn.scale","Scale Ordination",value=T)
                                                       ),
-                                                      column(width=3,
+                                                      column(width=6,
                                                              conditionalPanel("input.nn_method!='User Selected'",
                                                                               box(title="Distance-Decay Site Selection",width=12,
                                                                                   checkboxInput("nn_useDD","Use Distance-Decay Site Selection", value=T),
@@ -420,10 +443,11 @@ body <- shinydashboard::dashboardBody(
                                                                                   numericInput("nn.constant","Distance Decay constant", value = 1)
                                                                               )
                                                              )
-                                                      ),
-                                                      column(width=6,
-                                                             plotOutput("nn.dist")
                                                       )
+                                                      
+                                               ),
+                                               box(title="Habitat Distances",width=4,
+                                                      plotOutput("nn.dist")
                                                ),
                                                box(title="TSA Options", width=3,
                                                    checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value=F),
@@ -438,40 +462,133 @@ body <- shinydashboard::dashboardBody(
                                     tabPanel(h4("Test Site Analysis"),
                                              fluidRow(
                                                fluidRow(
-                                                 column(width=6,
-                                                        fluidRow(
-                                                          uiOutput("tsa.result.printed")
-                                                        )
-                                                        
+                                                 column(width=5,
+                                                          uiOutput("tsa.result.printed"),
+                                                          actionLink("TSA_results_modal","TSA Model Results") #Need to add this
+
                                                  ),
                                                  column(width=4,
                                                         tabsetPanel(
                                                           tabPanel(title=("Circle Plot"),plotOutput("tsa.circle.plot") ),
                                                           tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot") ),
                                                           tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot") ),
-                                                          tabPanel(title=("Metric Dimensional Scaling"),plotOutput("tsa.pcoa.plot") )
+                                                          tabPanel(title=("NMDS"),plotOutput("tsa.pcoa.plot") )
                                                         )
                                                  )
                                                ),
-                                               column(width=10,plotOutput("tsa.metric.plot"))
-                                               
+                                               fluidRow(
+                                                 column(width=10,plotOutput("tsa.metric.plot"))
+                                               )
                                              )
                                     )
                                     
                              )
                              
                            )
+          ),
+          ##################################################
+          # RCA - Batch
+          ##################################################
+          
+          conditionalPanel("input.sidebarmenu === 'RCA_sub_batch'",
+                           fluidRow(
+                             h3("Integrity Assessment by Reference Condition Approach"),
+                             tabBox("RCA",width=12,
+                                    tabPanel(h4("Batch Setup"),
+                                             fluidRow(
+                                               box(title="Nearest-Neighbour Options",width=4,
+                                                   column(width=6,
+                                                          selectInput("nn_method_b","NN Method", multiple=F,selectize=F,
+                                                                      choices=c("ANNA","RDA-ANNA","User Selected")),
+                                                          numericInput("nn.k_b","Number of Reference Sites", value = 0,min=0,step=1),
+                                                          checkboxInput("nn.scale_b","Scale Ordination",value=T)
+                                                   ),
+                                                   column(width=6,
+                                                          conditionalPanel("input.nn_method_b!='User Selected'",
+                                                                           box(title="Distance-Decay Site Selection",width=12,
+                                                                               checkboxInput("nn_useDD_b","Use Distance-Decay Site Selection", value=T),
+                                                                               numericInput("nn.factor_b","Distance Decay factor", value = 2),
+                                                                               numericInput("nn.constant_b","Distance Decay constant", value = 1)
+                                                                           )
+                                                          )
+                                                   )
+                                                   
+                                               ),
+                                               box(title="Metric Selection",width=4,
+                                                   column(width=12,
+                                                          #conditionalPanel("input.nn_method=='ANNA'",
+                                                          checkboxInput("useMD_b","Maximal-Distance Metric Selection", value=T)
+                                                          #)
+                                                          ,
+                                                          uiOutput("out_metric.select_b")
+                                                   )
+                                                   
+                                               ),
+                                               box(title="TSA Options", width=3,
+                                                   checkboxInput("tsa_weighted_b","Weight Reference sites by habitat distance?",value=F),
+                                                   checkboxInput("tsa_outlier_rem_b","Remove optential outlier reference sites?",value=F),
+                                                   conditionalPanel("input.tsa_outlier_rem_b==true",
+                                                                    sliderInput("tsa_outbound_b", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
+                                                   )
+                                               )
+                                             ),
+                                             hr(),
+                                             actionButton("tsa_batch_go", "Start"),
+                                             helpText("This operation may take a long time. See Progress bar in lower right...")
+                                    ),
+                                    tabPanel(h4("Results"),
+                                             fluidRow(
+                                               box(title="Summary",
+                                                   tableOutput("tsa_bulk_table"),
+                                                   downloadButton("download_tsa_batch","Download")
+                                               )
+                                             ),
+                                             fluidRow(
+                                               box(title="Test Site Selection", width=2,
+                                                   uiOutput("out_batch_test_result_select")),
+                                               box(title="Overview",width=10,#uiOutput("batch_summary_report")
+                                                   fluidRow(
+                                                     fluidRow(
+                                                       column(width=5,
+                                                              uiOutput("tsa.result.printed_b"),
+                                                              actionLink("TSA_results_modal_b","TSA Model Results") #Need to add this
+                                                              
+                                                       ),
+                                                       column(width=4,
+                                                              plotOutput("tsa.circle.plot_b")
+                                                       )
+                                                     ),
+                                                     column(width=10,plotOutput("tsa.metric.plot_b"))
+                                                     
+                                                   ),
+                                                   fluidRow(
+                                                     column(width=6,
+                                                            plotOutput("nn.ord_b"),
+                                                            actionLink("NN_results_modal_b","Nearest-Neighbour Model Results") #Need to add this
+                                                            
+                                                     ),
+                                                     column(width=4,
+                                                            plotOutput("nn.dist_b")
+                                                     )
+                                                   )
+                                               )
+                                             )
+                                    )
+                             )
+                           )
           )
           
           ##################################################
           # End of Body
           ##################################################
+          #h5("User Matched Reference Sites"),
+          #helpText("This feature is still in Development"),
+          #verbatimTextOutput("testout1"),
+          #verbatimTextOutput("testout3"),
+          #DT::dataTableOutput("testout2")
+          
   )
 )
-
-
-
-
 
 dashboardPage(
   header,
