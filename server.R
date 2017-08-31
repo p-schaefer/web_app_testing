@@ -14,7 +14,6 @@ library(dplyr)
 library(ggplot2)
 library(vegan)
 library(reshape2)
-library(dplyr)
 #library(purrr)    # map functions (like lapply)
 #library(lazyeval) # interp function
 #library(tidyr)
@@ -67,9 +66,7 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  
-  
-  
+
   #########################################################
   #Saving and loading states
   #########################################################
@@ -314,11 +311,23 @@ shinyServer(function(input, output, session) {
   #    User Matched Reference Sites
   #########################################################
   
-  userMatchRefSites<-reactiveValues(TFmatrix=NULL)
+  userMatchRefSites<-reactiveValues(raw.data=NULL,TFmatrix=NULL)
   
   observeEvent(input$inUserMatchRefFile,{
-    raw.bio.data$data<-read.csv(input$inUserMatchRefFile$datapath,strip.white=TRUE, header=T)
-    raw.bio.data$data<-data.frame(apply(raw.bio.data$data,2,as.character))
+    userMatchRefSites$raw.data<-read.csv(input$inUserMatchRefFile$datapath,strip.white=TRUE, header=T)
+    userMatchRefSites$raw.data<-data.frame(apply(userMatchRefSites$raw.data,2,as.character),stringsAsFactors=FALSE)
+
+    temp.tfMatrix<-data.frame(matrix(nrow=sum(reftest.by.site$data[,1]==0),ncol=sum(reftest.by.site$data[,1]==1)))
+    rownames(temp.tfMatrix)<-rownames(reftest.by.site$data)[reftest.by.site$data[,1]==0]
+    colnames(temp.tfMatrix)<-rownames(reftest.by.site$data)[reftest.by.site$data[,1]==1]
+    
+    for (i in rownames(temp.tfMatrix)){
+      temp<-as.vector(userMatchRefSites$raw.data[userMatchRefSites$raw.data[,1]%in%i,-c(1)])
+      temp<-temp[temp!=""]
+      
+      temp.tfMatrix[i,colnames(temp.tfMatrix)%in%temp]<-TRUE
+      temp.tfMatrix[i,!colnames(temp.tfMatrix)%in%temp]<-FALSE
+    }
   })
   
   
@@ -834,7 +843,7 @@ shinyServer(function(input, output, session) {
       if (is(t.metric,"try-error")) {
         next
       } else {
-        bio.data$data$Summary.Metrics[,colnames(bio.data$data$untransformed.metrics)%in%i]<-t.metric
+        bio.data$data$Summary.Metrics[,colnames(bio.data$data$Summary.Metrics)%in%i]<-t.metric
         bio.data$data$transformations$Transformation[bio.data$data$transformations$Metric%in%i]<-as.character(input$trans.batch)
       }
       
@@ -1010,7 +1019,7 @@ shinyServer(function(input, output, session) {
       validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
       validate(need(length(input$in_metric.select)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
       validate(need(!any(input$in_metric.select%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
-      validate(need(!any(is.na(bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select])),"NAs not allowed in biological data"))
+      validate(need(!any(is.na(bio.data$data$Summary.Metrics[,input$in_metric.select])),"NAs not allowed in biological data"))
     }
     
     nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],

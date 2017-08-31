@@ -417,9 +417,9 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                box(title="Metric Selection",width=4,
                                                    column(width=12,
-                                                          #conditionalPanel("input.nn_method=='ANNA'",
+                                                          conditionalPanel("input.nn_method=='ANNA'",
                                                           checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
-                                                          #)
+                                                          )
                                                           ,
                                                           uiOutput("out_metric.select")
                                                    )
@@ -516,9 +516,9 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                box(title="Metric Selection",width=4,
                                                    column(width=12,
-                                                          #conditionalPanel("input.nn_method=='ANNA'",
+                                                          conditionalPanel("input.nn_method_b=='ANNA'",
                                                           checkboxInput("useMD_b","Maximal-Distance Metric Selection", value=T)
-                                                          #)
+                                                          )
                                                           ,
                                                           uiOutput("out_metric.select_b")
                                                    )
