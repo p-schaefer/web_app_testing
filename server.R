@@ -40,6 +40,7 @@ shinyServer(function(input, output, session) {
       size="s",
       textInput("username","User Name"),
       passwordInput("password","Password"),
+      helpText("To request a username and password email: ecopulseanalytics@gmail.com"),
       footer = actionButton("login","Login"),
       easyClose = F,
       if (failed){
@@ -109,6 +110,7 @@ shinyServer(function(input, output, session) {
     
     raw.bio.data$data<-NULL
     taxa.by.site$data<-NULL
+    taxa.by.site$data.alt.colnames<-NULL
     bio.data$data<-NULL
     habitat.by.site$data<-NULL
     site.ID.cols$data<-NULL
@@ -119,11 +121,40 @@ shinyServer(function(input, output, session) {
     coord.ID.cols$east<-NULL
     coord.ID.cols$north<-NULL
     coord.ID.cols$espg<-NULL
+    all.data$data<-NULL
+    additional.metrics_b$data=NULL
+    additional.metrics_b$output.list=NULL
+    tsa.results_b$data=NULL
+    tsa.results_b$output.list=NULL
+    additional.metrics$data=NULL
+    additional.metrics$output.list=NULL
+    tsa.results$data=NULL
+    tsa.results$output.list=NULL
+    tsa.batch.outout$data=NULL
+    nn.sites$data=NULL
+    missing.sampling.events$full.data=NULL
+    missing.sampling.events$rnames=NULL
+    reftest.by.site$data=NULL
+    coordinates.by.site$data.all=NULL
+    coordinates.by.site$data.unique=NULL
+    coordinates.by.site$gis.site.id=NULL
+    feeding.data$data.reduced<-NULL
+    habitat.data$data<-NULL
   })
   
   output$rawDataView<-renderDataTable({#Renders raw data table
+    validate(need(!is.null(raw.bio.data$data),"Select an input file from the sidebar"))
     DT::datatable(raw.bio.data$data, options=list(pageLength = 5,scrollX=T))
   })
+  
+  output$show_rawdatabox<-reactive({
+    if(!is.null(raw.bio.data$data)){
+      TRUE
+    } else {
+      FALSE
+    }
+  })
+  outputOptions(output, 'show_rawdatabox', suspendWhenHidden=FALSE)
   
   raw.data.rows<-reactive({
     validate(
@@ -316,18 +347,44 @@ shinyServer(function(input, output, session) {
   observeEvent(input$inUserMatchRefFile,{
     userMatchRefSites$raw.data<-read.csv(input$inUserMatchRefFile$datapath,strip.white=TRUE, header=T)
     userMatchRefSites$raw.data<-data.frame(apply(userMatchRefSites$raw.data,2,as.character),stringsAsFactors=FALSE)
+    
+    if (is.null(reftest.by.site$data)) {
+      shinyjs::reset('inUserMatchRefFile')
+      validate(need(F,"Must specify Reference and Test samples in input file"))
+    }
 
     temp.tfMatrix<-data.frame(matrix(nrow=sum(reftest.by.site$data[,1]==0),ncol=sum(reftest.by.site$data[,1]==1)))
     rownames(temp.tfMatrix)<-rownames(reftest.by.site$data)[reftest.by.site$data[,1]==0]
     colnames(temp.tfMatrix)<-rownames(reftest.by.site$data)[reftest.by.site$data[,1]==1]
     
+    raw.site.names<-rownames(reftest.by.site$data)
+    user.site.names<-unlist(userMatchRefSites$raw.data)
+    user.site.names<-unique(user.site.names)
+    
+    if (!any(raw.site.names%in%user.site.names)|!any(user.site.names%in%raw.site.names)){
+      shinyjs::reset('inUserMatchRefFile')
+      validate(need(F,"Sample name mismatch between Raw Data User Site Match"))
+    }
+    
     for (i in rownames(temp.tfMatrix)){
-      temp<-as.vector(userMatchRefSites$raw.data[userMatchRefSites$raw.data[,1]%in%i,-c(1)])
+      temp<-paste0(userMatchRefSites$raw.data[userMatchRefSites$raw.data[,1]%in%i,-c(1)])
       temp<-temp[temp!=""]
       
       temp.tfMatrix[i,colnames(temp.tfMatrix)%in%temp]<-TRUE
       temp.tfMatrix[i,!colnames(temp.tfMatrix)%in%temp]<-FALSE
+      rm(temp)
     }
+    userMatchRefSites$TFmatrix<-temp.tfMatrix
+  })
+  output$out_usermatch.refsites<-renderDataTable({
+    validate(need(!is.null(reftest.by.site$data),"Must specify Reference and Test samples in input file"))
+    validate(need(!is.null(userMatchRefSites$TFmatrix),"Select a file to upload from the sidebar"))
+    DT::datatable(userMatchRefSites$TFmatrix,options=list(pageLength = 10,scrollX=T))
+  })
+  output$out_usermatch.refsites1<-renderDataTable({
+    validate(need(!is.null(reftest.by.site$data),"Must specify Reference and Test samples in input file"))
+    validate(need(!is.null(userMatchRefSites$TFmatrix),"No user matched reference sites specified. See Data Input -> User Matched Reference Sites"))
+    DT::datatable(userMatchRefSites$TFmatrix,options=list(pageLength = 10,scrollX=T))
   })
   
   
@@ -940,10 +997,20 @@ shinyServer(function(input, output, session) {
       #input$tsa_weighted
     )
   ,{
+
     all.data$data<-taxa.by.site$data.alt.colnames
+    
+    if (!is.null(site.ID.cols$data)){
+      all.data$data<-cbind(do.call(rbind,strsplit(rownames(all.data$data),";")),all.data$data)
+      colnames(all.data$data)[1:length(site.ID.cols$data)]<-site.ID.cols$data
+    }
     
     if(input$metdata==F & !is.null(bio.data$data$Summary.Metrics)){
       all.data$data<-data.frame(cbind(all.data$data,bio.data$data$Summary.Metrics,feeding.data$data.reduced,habitat.data$data))
+    }
+    
+    if(input$metdata==T & !is.null(bio.data$data$Summary.Metrics)){
+      all.data$data<-data.frame(cbind(all.data$data,bio.data$data$Summary.Metrics))
     }
     
     if(!is.null(habitat.by.site$data)){
@@ -974,17 +1041,18 @@ shinyServer(function(input, output, session) {
   #########################################################
   #NN Site Matching + Metric Selection
   #########################################################
+
   output$out_test.site.select<-renderUI({
     validate(need(!is.null(reftest.ID.cols$data),""))
     selectInput("in_test_site_select","",selected="None",
-                choices=c("None",rownames(habitat.by.site$data)[reftest.by.site$data==0])
+                choices=c("None",rownames(reftest.by.site$data)[reftest.by.site$data==0])
                 )
   })
   
   output$out_metric.select<-renderUI({
     validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
     
-    if(input$nn_method=="ANNA" & input$metdata==F){
+    if((input$nn_method=="ANNA"|input$nn_method=="User Selected") & input$metdata==F){
       selectInput("in_metric.select","", multiple = T,selectize = F, size=15,
                   choices=c(colnames(bio.data$data$Summary.Metrics),
                             "O:E","Bray-Curtis","CA1","CA2"), 
@@ -1009,40 +1077,41 @@ shinyServer(function(input, output, session) {
     input$in_metric.select,
     input$nn.scale
   ),{
-    nn.sites$data<-NULL
-    validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
-    validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
-    validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA","User matched reference sites not yet implimented"))
-    validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
-    validate(need(input$nn.k>=3|input$nn_useDD,"Need k>=3 or use Distance-Decay site selection"))
-    if (input$nn_method=="RDA-ANNA"){
-      validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
-      validate(need(length(input$in_metric.select)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
-      validate(need(!any(input$in_metric.select%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
-      validate(need(!any(is.na(bio.data$data$Summary.Metrics[,input$in_metric.select])),"NAs not allowed in biological data"))
+    if (input$nn_method!="User Selected"){
+      nn.sites$data<-NULL
+      validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+      validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
+      validate(need(input$nn_method=="RDA-ANNA" | input$nn_method=="ANNA","User matched reference sites not yet implimented"))
+      validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
+      validate(need(input$nn.k>=3|input$nn_useDD,"Need k>=3 or use Distance-Decay site selection"))
+      if (input$nn_method=="RDA-ANNA"){
+        validate(need(length(input$in_metric.select)>=3,"Select Metricsat least 3 metrics"))
+        validate(need(length(input$in_metric.select)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
+        validate(need(!any(input$in_metric.select%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
+        validate(need(!any(is.na(bio.data$data$Summary.Metrics[,input$in_metric.select])),"NAs not allowed in biological data"))
+      }
+      
+      nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],
+                                                          Reference=habitat.by.site$data[reftest.by.site$data==1,],
+                                                          k=if (is.numeric(input$nn.k)){input$nn.k} else {NULL},
+                                                          distance.decay=input$nn_useDD,
+                                                          dd.factor=input$nn.factor,
+                                                          dd.constant=input$nn.constant,
+                                                          RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
+                                                          scale=T) #scale=input$nn.scale crashes it)
     }
-    
-    nn.sites$data<-BenthicAnalysistesting::site.matchUI(Test=habitat.by.site$data[reftest.by.site$data==0,],
-                                                        Reference=habitat.by.site$data[reftest.by.site$data==1,],
-                                                        k=if (is.numeric(input$nn.k)){input$nn.k} else {NULL},
-                                                        distance.decay=input$nn_useDD,
-                                                        dd.factor=input$nn.factor,
-                                                        dd.constant=input$nn.constant,
-                                                        RDA.reference= if (input$nn_method=="RDA-ANNA") {bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select]} else {NULL},
-                                                        scale=T) #scale=input$nn.scale crashes it)
-    #if (!is.null(nn.sites$data)){
-    #  temp<-data.frame(nn.sites$data$TF.matrix)
-    #  temp<-temp[rownames(all.data$data),]
-    #  all.data$data<-data.frame(cbind(all.data$data,temp))
-    #}
-    
+    if (input$nn_method=="User Selected"){
+      nn.sites$data$TF.matrix<-userMatchRefSites$TFmatrix
+    }
   })
   
   output$out_nn.axis1<-renderUI({
+    validate(need(input$nn_method!="User Selected",""))
     selectInput("in_nn.axis1","X Axis", choices=colnames(nn.sites$data$env.ordination.scores),
                 selected=colnames(nn.sites$data$env.ordination.scores)[1])
   })
   output$out_nn.axis2<-renderUI({
+    validate(need(input$nn_method!="User Selected",""))
     selectInput("in_nn.axis2","Y Axis", choices=colnames(nn.sites$data$env.ordination.scores),
                 selected=colnames(nn.sites$data$env.ordination.scores)[2])
   })
@@ -1060,6 +1129,9 @@ shinyServer(function(input, output, session) {
     }
   })
   output$nn.ord<-renderPlot({
+    validate(need(input$nn_method!="User Selected",""))
+    validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
+    
     if (!is.null(input$in_test_site_select) & !is.null(input$in_nn.axis1) & !is.null(input$in_nn.axis2)){
       
       if(is.null(input$in_nn.axis1) | is.null(input$in_nn.axis2)){return(NULL)}
@@ -1100,15 +1172,13 @@ shinyServer(function(input, output, session) {
         xlab(paste0(input$in_nn.axis1)) + 
         ylab(paste0(input$in_nn.axis2)) +
         coord_cartesian(xlim = nn.ord.ranges$x, ylim = nn.ord.ranges$y, expand = TRUE)
-      
-      
+
       if (input$nnplot.hab.points){
         p1<- p1 + geom_point(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], size=1,shape=8,color="darkred") 
       }
       
       if (input$nnplot.hab.names){
         p1<- p1 + geom_text(data=nn.sites$data$env.ordination.scores[,c(input$in_nn.axis1,input$in_nn.axis2)], label=rownames(nn.sites$data$env.ordination.scores))
-        
       }
       
       if (input$in_test_site_select!="None"){
@@ -1156,7 +1226,7 @@ shinyServer(function(input, output, session) {
   
 
   #########################################################
-  #TSA Calculations
+  #TSA Calculations - single
   #########################################################
   
   #Calculate Additional metrics if input$nn_method=="ANNA" & input$metdata==F
@@ -1174,25 +1244,27 @@ shinyServer(function(input, output, session) {
     input$in_metric.select,
     input$nn.scale
   ), {
-    if (input$in_test_site_select=="None"||is.null(input$in_test_site_select)){
-      tsa.results$output.list<-NULL
-      tsa.results$data<-NULL
-      validate(need(F, ""))
+    if (input$metdata==F){
+      if (input$in_test_site_select=="None"||is.null(input$in_test_site_select)){
+        tsa.results$output.list<-NULL
+        tsa.results$data<-NULL
+        validate(need(F, ""))
+      }
+      if (is.null(nn.sites$data)){
+        tsa.results$output.list<-NULL
+        tsa.results$data<-NULL
+        validate(need(F, ""))
+      }
+      temp<-all.data$data
+      colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
+      
+      Test<-temp[input$in_test_site_select,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
+      rownames(temp2)[nrow(temp2)]<-rownames(Test)
+      eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
     }
-    if (is.null(nn.sites$data)){
-      tsa.results$output.list<-NULL
-      tsa.results$data<-NULL
-      validate(need(F, ""))
-    }
-    temp<-all.data$data
-    colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
-    
-    Test<-temp[input$in_test_site_select,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
-    ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
-    Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
-    temp2<-BenthicAnalysistesting::add.met(Test=Test,Reference = Reference,original=F)
-    rownames(temp2)[nrow(temp2)]<-rownames(Test)
-    eval(parse(text=paste0("additional.metrics$data$'",rownames(Test),"'<-temp2")))
   })
   
   tsa.results<-reactiveValues(data=NULL,output.list=NULL) #create a list of tsa.test objects
@@ -1220,11 +1292,11 @@ shinyServer(function(input, output, session) {
         tsa.results$data<-NULL
         validate(need(F, ""))
       }
-      if (input$nn_method=="User Selected") {
-        tsa.results$output.list<-NULL
-        tsa.results$data<-NULL
-        validate(need(F, ""))
-      }
+      #if (input$nn_method=="User Selected") {
+      #  tsa.results$output.list<-NULL
+      #  tsa.results$data<-NULL
+      #  validate(need(F, ""))
+      #}
       if (is.null(input$in_metric.select)){
         tsa.results$output.list<-NULL
         tsa.results$data<-NULL
@@ -1246,7 +1318,7 @@ shinyServer(function(input, output, session) {
     output2<-output2[-c(1:ncol(all.data$data))]
     
     test.site<-input$in_test_site_select
-    if (input$nn_method=="ANNA"){
+    if (input$nn_method=="ANNA"|input$nn_method=="User Selected"){
       if (is.null(additional.metrics$data)){
         tsa.results$output.list<-NULL
         tsa.results$data<-NULL
@@ -1270,8 +1342,7 @@ shinyServer(function(input, output, session) {
       ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
       Reference<-temp[names(ref.set)[ref.set==T],input$in_metric.select]
     }
-    
-    if (input$tsa_weighted){
+    if (input$tsa_weighted & input$nn_method!="User Selected"){
       distance<-nn.sites$data$distance.matrix[rownames(Test),]
       distance<-distance[rownames(Reference)]
     } else {
@@ -1346,7 +1417,7 @@ shinyServer(function(input, output, session) {
   output$out_metric.select_b<-renderUI({
     validate(need(!is.null(reftest.ID.cols$data) & !is.null(bio.data$data),""))
     
-    if(input$nn_method_b=="ANNA" & input$metdata==F){
+    if((input$nn_method_b=="ANNA"|input$nn_method_b=="User Selected") & input$metdata==F){
       selectInput("in_metric.select_b","", multiple = T,selectize = F, size=15,
                   choices=c(colnames(bio.data$data$Summary.Metrics),
                             "O:E","Bray-Curtis","CA1","CA2"), 
@@ -1367,19 +1438,22 @@ shinyServer(function(input, output, session) {
   observeEvent(c(
     input$tsa_batch_go
   ), {
+    if(input$tsa_batch_go>0){
+      nn.sites$data<-NULL
+    }
     withProgress(message="Working", value=0, { # Will this work?
-      if (input$nn_method_b=="User Selected" & input$tsa_batch_go>1) {
-        tsa.results_b$output.list<-NULL
-        tsa.results_b$data<-NULL
-        additional.metrics_b<-NULL
-        showModal(modalDialog(title="Error",
-                              helpText("User Matched Reference Sites not yet implimented"),
-                              easyClose = T,
-                              size="s"
-                              ))
-        validate(need(F, "User matched reference sites not yet implimented"))
-      }
-      if (is.null(input$in_metric.select_b) & input$tsa_batch_go>1){
+      #if (input$nn_method_b=="User Selected" & input$tsa_batch_go>1) {
+      #  tsa.results_b$output.list<-NULL
+      #  tsa.results_b$data<-NULL
+      #  additional.metrics_b<-NULL
+      #  showModal(modalDialog(title="Error",
+      #                        helpText("User Matched Reference Sites not yet implimented"),
+      #                        easyClose = T,
+      #                        size="s"
+      #                        ))
+      #  validate(need(F, "User matched reference sites not yet implimented"))
+      #}
+      if (is.null(input$in_metric.select_b) & input$tsa_batch_go>0){
         tsa.results_b$output.list<-NULL
         tsa.results_b$data<-NULL
         additional.metrics_b<-NULL
@@ -1391,7 +1465,7 @@ shinyServer(function(input, output, session) {
         validate(need(F, ""))
       }
       
-      if (length(input$in_metric.select_b)<2 & input$tsa_batch_go>1){
+      if (length(input$in_metric.select_b)<2 & input$tsa_batch_go>0){
         tsa.results_b$output.list<-NULL
         tsa.results_b$data<-NULL
         additional.metrics_b<-NULL
@@ -1402,15 +1476,37 @@ shinyServer(function(input, output, session) {
         ))
         validate(need(F, ""))
       }
+      if (input$nn_method_b!="User Selected" & is.null(habitat.by.site$data) & input$tsa_batch_go>0){
+        tsa.results_b$output.list<-NULL
+        tsa.results_b$data<-NULL
+        additional.metrics_b<-NULL
+        showModal(modalDialog(title="Error",
+                              helpText("Habitat data not available"),
+                              easyClose = T,
+                              size="s"
+        ))
+        validate(need(F, ""))
+      }
+      if (input$nn_method_b=="User Selected" & is.null(userMatchRefSites$TFmatrix) & input$tsa_batch_go>0){
+        tsa.results_b$output.list<-NULL
+        tsa.results_b$data<-NULL
+        additional.metrics_b<-NULL
+        showModal(modalDialog(title="Error",
+                              helpText("User Matched Reference Sites not available"),
+                              easyClose = T,
+                              size="s"
+        ))
+        validate(need(F, ""))
+      }
+      
       
       if (input$nn_method_b!="User Selected"){
         validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
         validate(need(reftest.ID.cols$data!="None","Missing Reference Sites"))
-        validate(need(input$nn_method_b=="RDA-ANNA" | input$nn_method=="ANNA","User matched reference sites not yet implimented"))
         validate(need(!any(is.na(habitat.by.site$data)),"NAs not allowed in habitat data"))
-        validate(need(input$nn.k_b>=3|input$nn_useDD_b,"Need k>=3 or use Distance-Decay site selection"))
-        if (input$nn_method=="RDA-ANNA"){
-          validate(need(length(input$in_metric.select_b)>=3,"Select Metricsat least 3 metrics"))
+        validate(need(input$nn.k_b>2|input$nn_useDD_b,"Need k>=3 or use Distance-Decay site selection"))
+        if (input$nn_method_b=="RDA-ANNA"){
+          validate(need(length(input$in_metric.select_b)>=3,"Select at least 3 metrics"))
           validate(need(length(input$in_metric.select_b)<=(0.5*ncol(habitat.by.site$data)),"Too many metrics for number of habitat variables"))
           validate(need(!any(input$in_metric.select_b%in%c("O:E","Bray-Curtis","CA1","CA2")),"The following metrics are only available with ANNA: Observed:Expected, Bray-Curtis, CA1, CA2"))
           validate(need(!any(is.na(bio.data$data$Summary.Metrics[reftest.by.site$data==1,input$in_metric.select_b])),"NAs not allowed in biological data"))
@@ -1430,18 +1526,24 @@ shinyServer(function(input, output, session) {
         }
         ref.set<-nn.sites$data$TF.matrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
         ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
-        
+      }
+      if (input$nn_method_b=="User Selected"){
+        ref.set<-userMatchRefSites$TFmatrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
+        ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
       }
       
       temp.all.data<-all.data$data
       colnames(temp.all.data)<-gsub(".",";",colnames(temp.all.data),fixed = T)
       temp.all.data<-temp.all.data[rownames(taxa.by.site$data),]
-
-      if (input$nn_method_b=="ANNA"){
-        additional.metrics_b$data<-data.frame(matrix(nrow=length(which(reftest.by.site$data==0)),ncol=4))
-        rownames(additional.metrics_b$data)<-rownames(reftest.by.site$data)[reftest.by.site$data==0]
-        colnames(additional.metrics_b$data)<-c("O:E","Bray-Curtis","CA1","CA2")
+      
+      if (input$metdata==F){
+        if (input$nn_method_b=="ANNA"|input$nn_method_b=="User Selected"){
+          additional.metrics_b$data<-data.frame(matrix(nrow=length(which(reftest.by.site$data==0)),ncol=4))
+          rownames(additional.metrics_b$data)<-rownames(reftest.by.site$data)[reftest.by.site$data==0]
+          colnames(additional.metrics_b$data)<-c("O:E","Bray-Curtis","CA1","CA2")
+        }
       }
+
       tsa.results_b$data<-data.frame(matrix(nrow=length(which(reftest.by.site$data==0)),ncol=5))
       rownames(tsa.results_b$data)<-rownames(reftest.by.site$data)[reftest.by.site$data==0]
       colnames(tsa.results_b$data)<-c("TSA Impairment","Interval Test","Equivalence Test","Randomization p value","Test Site D2")
@@ -1451,7 +1553,7 @@ shinyServer(function(input, output, session) {
         ref.set3<-ref.set2[i]
         ref.set3[[1]][length(ref.set3[[1]])+1]<-names(ref.set3)
         ref.set3<-ref.set3[[1]]
-        if (input$nn_method_b!="User Selected" & input$nn_method_b!="RDA-ANNA"){
+        if (input$nn_method_b!="RDA-ANNA"){
           add.mets<-BenthicAnalysistesting::add.met(Test=temp.all.data[names(ref.set2[i]),colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
                                                     Reference = temp.all.data[ref.set2[[i]],colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
                                                     original=F)
@@ -1485,22 +1587,23 @@ shinyServer(function(input, output, session) {
         ), silent=T)
         
         if(class(output1)=="try-error"){
-          tsa.results$output.list<-output1
-          tsa.results$data<-c("Error","NA","NA","NA")
+          tsa.results_b$data[names(ref.set2)[i],]<-c("Error","NA","NA","NA","NA")
+          eval(parse(text=paste0("tsa.results_b$output.list$'",names(ref.set2)[i],"'<-attr(output1,'condition')$message")))
         } else {
           tsa.results_b$data[names(ref.set2)[i],]<-output1$tsa.results[1:5,]
           eval(parse(text=paste0("tsa.results_b$output.list$'",names(ref.set2)[i],"'<-output1")))
         }
         
       }
-      
-      if (input$nn_method_b=="ANNA"){
-        temp<-data.frame(additional.metrics_b$data)
-        temp<-temp[rownames(all.data$data),]
-        all.data$data<-data.frame(cbind(all.data$data,temp))
-        rm(temp)
+      if (input$metdata==F){
+        if (input$nn_method_b=="ANNA"|input$nn_method_b=="User Selected"){
+          temp<-data.frame(additional.metrics_b$data)
+          temp<-temp[rownames(all.data$data),]
+          all.data$data<-data.frame(cbind(all.data$data,temp))
+          rm(temp)
+        }
       }
-      
+
       tsa.results_b$data$`TSA Impairment`<-as.factor(tsa.results_b$data$`TSA Impairment`)
       tsa.results_b$data$`Interval Test`<-as.numeric(tsa.results_b$data$`Interval Test`)
       tsa.results_b$data$`Equivalence Test`<-as.numeric(tsa.results_b$data$`Equivalence Test`)
@@ -1510,12 +1613,22 @@ shinyServer(function(input, output, session) {
       temp<-data.frame(tsa.results_b$data)
       temp<-temp[rownames(all.data$data),]
       all.data$data<-data.frame(cbind(all.data$data,temp))
+      #all.data$data$TSA.Impairment<-factor(all.data$data$TSA.Impairment,levels(all.data$data$TSA.Impairment)[c(2,3,1)])
+      
       rm(temp)
       
       tsa.batch.outout$data<-data.frame(tsa.results_b$data)
-      tsa.batch.outout$data$Selected.Metrics<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][3,])
-      tsa.batch.outout$data$Significant.Metrics<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][4,])
-      tsa.batch.outout$data$Reference.Set<-sapply(tsa.results_b$output.list, function(x)x[["general.results"]][2,])
+      passed.sites<-rownames(tsa.batch.outout$data)[!is.na(tsa.batch.outout$data$Interval.Test)]
+      error.sites<-rownames(tsa.batch.outout$data)[is.na(tsa.batch.outout$data$Interval.Test)]
+      
+      tsa.batch.outout$data$Selected.Metrics<-NA
+      tsa.batch.outout$data$Significant.Metrics<-NA
+      tsa.batch.outout$data$Reference.Set<-NA
+      tsa.batch.outout$data$Error.details<-NA
+      tsa.batch.outout$data$Selected.Metrics[rownames(tsa.batch.outout$data)%in%passed.sites]<-sapply(tsa.results_b$output.list[passed.sites], function(x)x[["general.results"]][3,])
+      tsa.batch.outout$data$Significant.Metrics[rownames(tsa.batch.outout$data)%in%passed.sites]<-sapply(tsa.results_b$output.list[passed.sites], function(x)x[["general.results"]][4,])
+      tsa.batch.outout$data$Reference.Set[rownames(tsa.batch.outout$data)%in%passed.sites]<-sapply(tsa.results_b$output.list[passed.sites], function(x)x[["general.results"]][2,])
+      tsa.batch.outout$data$Reference.Set[rownames(tsa.batch.outout$data)%in%error.sites]<-sapply(tsa.results_b$output.list[error.sites], function(x)x[[1]])
     })
   })
   
@@ -1539,51 +1652,65 @@ shinyServer(function(input, output, session) {
   })
   
   observeEvent(input$NN_results_modal_b,{
-    tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
-    tsa.object<-tsa.object[[1]]
-    
-    showModal(modalDialog(
-      title="Nearest-Neighbour Model Results",
-      renderPrint(nn.sites$data),
-      hr(),
-      h4("Reference Set"),
-      renderPrint(tsa.object$general.results[2,]),
-      hr(),
-      h4("Ordination Results"),
-      renderPrint(nn.sites$data$ordination),
-      hr(),
-      h4("Distances"),
-      renderPrint(nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_batch_test_result_select,]),
-      hr(),
-      h4("Inclusions"),
-      renderPrint(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_batch_test_result_select,]),
-      hr(),
-      box(title="Ordination Results (detailed)", width=12, collapsible = T, collapsed = T,
-          renderPrint(summary(nn.sites$data$ordination))
-          ),
-      size="l",
-      easyClose = T
-    ))
+    if (input$nn_method_b!="User Selected"){
+      tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
+      tsa.object<-tsa.object[[1]]
+      
+      showModal(modalDialog(
+        title="Nearest-Neighbour Model Results",
+        renderPrint(nn.sites$data),
+        hr(),
+        h4("Reference Set"),
+        renderPrint(tsa.object$general.results[2,]),
+        hr(),
+        h4("Ordination Results"),
+        renderPrint(nn.sites$data$ordination),
+        hr(),
+        h4("Distances"),
+        renderPrint(nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_batch_test_result_select,]),
+        hr(),
+        h4("Inclusions"),
+        renderPrint(nn.sites$data$TF.matrix[rownames(nn.sites$data$TF.matrix)%in%input$in_batch_test_result_select,]),
+        hr(),
+        box(title="Ordination Results (detailed)", width=12, collapsible = T, collapsed = T,
+            renderPrint(summary(nn.sites$data$ordination))
+        ),
+        size="l",
+        easyClose = T
+      ))
+    } 
   })
   
   #########################################################
   #TSA- batch outputs
   ########################################################
-  output$tsa_bulk_table<-renderTable({
+  output$out_tsa_bulk_table_sumby<-renderUI({
+    selectizeInput("in_tsa_bulk_table_sumby","Summarize by:",choices=site.ID.cols$data, multiple=T)
+  })
+  
+  output$tsa_bulk_table<-renderDataTable({
     if (!is.null(input$in_batch_test_result_select)){
       #sites<-data.frame(do.call(rbind,(strsplit(rownames(all.data$data),";"))))
       #apply(sites,2,function(x)length(unique(x)))
-      t(table(all.data$data[all.data$data$Class=="Test","TSA.Impairment"]))
+      if(is.null(input$in_tsa_bulk_table_sumby)){
+        outtable<-plyr::count(all.data$data[reftest.by.site$data==0,],vars=c("TSA.Impairment"))
+        colnames(outtable)[(ncol(outtable)-1):ncol(outtable)]<-c("Impairment","Frequency")
+      } else {
+        outtable<-plyr::count(all.data$data[reftest.by.site$data==0,],vars=c(input$in_tsa_bulk_table_sumby,"TSA.Impairment"))
+        colnames(outtable)[(ncol(outtable)-1):ncol(outtable)]<-c("Impairment","Frequency")
+      }
+      DT::datatable(outtable,rownames = F,filter = 'top')
+      
     } else {
       validate(need(F,"Must run Batch Mode First"))
     }
   })
   
   output$out_batch_test_result_select<-renderUI({
-    validate(need(any(colnames(all.data$data)=="Class"),""))
+    validate(need(!is.null(tsa.batch.outout$data),""))
     
     selectInput("in_batch_test_result_select","",
-                choices=rownames(habitat.by.site$data)[reftest.by.site$data==0]
+                choices=rownames(reftest.by.site$data)[reftest.by.site$data==0]
                   #rownames(all.data$data)[all.data$data$Class=="Test"]#,
                 #selected=rownames(all.data$data[all.data$data$Class=="Test",])[1]
                 #choices=c("None",rownames(all.data$data[all.data$data$Class=="Test",]))
@@ -1796,6 +1923,7 @@ shinyServer(function(input, output, session) {
   })
   
   output$nn.dist_b<-renderPlot({
+    validate(need(input$nn_method_b!="User Selected",""))
     if (!is.null(input$in_batch_test_result_select)){
       
       distances<-nn.sites$data$distance.matrix[rownames(nn.sites$data$distance.matrix)%in%input$in_batch_test_result_select,]
@@ -2259,136 +2387,134 @@ shinyServer(function(input, output, session) {
   })
   
   #Raw Data input
-  observeEvent(input$raw.help, {
-    showModal(modalDialog(
-      size="l",
-      title = "Upload and define Raw Data",
-      hr(),
-      helpText("A single input file is used for all data. Below are examples of different input data structures."),
-      hr(),
-      fluidRow(
-        box(title=h4("Examples"),width=12, collapsible = T, collapsed = T, status="success",solidHeader = T,
-            tabBox(width = 12,
-                   tabPanel("Long Format",
-                            downloadLink(outputId="download_ex_long",label="Download"),
-                            hr(),
-                            renderDataTable({DT::datatable(read.csv("Long_example.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
-                            ),
-                   tabPanel("Wide Format (1 row)",
-                            downloadLink(outputId="download_ex_wide1",label="Download"),
-                            hr(),
-                            renderDataTable({DT::datatable(read.csv("Wide_example1.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
-                            ),
-                   tabPanel("Wide Format (multi row)",
-                            downloadLink(outputId="download_ex_wide2",label="Download"),
-                            hr(),
-                            renderDataTable({DT::datatable(read.csv("Wide_example2.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
-                   )
+  observeEvent(
+    c(input$raw.help,
+      input$getting_started
+    ), {
+      if (input$getting_started>0 | input$raw.help>0){
+        showModal(modalDialog(
+          size="l",
+          title = "Upload and define Raw Data",
+          hr(),
+          helpText("A single input file is used for all data. Below are examples of different input data structures."),
+          hr(),
+          fluidRow(
+            box(title=h4("Examples"),width=12, collapsible = T, collapsed = T, status="success",solidHeader = T,
+                tabBox(width = 12,
+                       tabPanel("Long Format",
+                                downloadLink(outputId="download_ex_long",label="Download"),
+                                hr(),
+                                renderDataTable({DT::datatable(read.csv("Long_example.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                       ),
+                       tabPanel("Wide Format (1 row)",
+                                downloadLink(outputId="download_ex_wide1",label="Download"),
+                                hr(),
+                                renderDataTable({DT::datatable(read.csv("Wide_example1.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                       ),
+                       tabPanel("Wide Format (multi row)",
+                                downloadLink(outputId="download_ex_wide2",label="Download"),
+                                hr(),
+                                renderDataTable({DT::datatable(read.csv("Wide_example2.csv",header=F),options=list(pageLength = 5,scrollX=T,searching = FALSE))})
+                       )
+                )
             )
-        )
-      ),
-      hr(),
-      fluidRow(
-        h4("Select your input file here"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help1.png",
-            filetype = "image/png",
-            height = 400,
-            width = 500
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      fluidRow(
-        h4("Select the format of your input data"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help2.png",
-            filetype = "image/png",
-            height = 400,
-            width = 500
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      fluidRow(
-        h4("Highlight column(s) (multiple while holding shift) and assign them to the appropriate attributes"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help3.png",
-            filetype = "image/png",
-            height = 400,
-            width = 600
-          ))
-        }, deleteFile = FALSE),
-        renderImage({
-          return(list(
-            src = "Rawdata_help4.png",
-            filetype = "image/png",
-            height = 400,
-            width = 600
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      fluidRow(
-        h4("Some attributes (i.e. Coordinates) are selected from dropdown menus (1)"),
-        h4("Once all fields have been selected, press the Finalize Coordinates button (2)"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help5.png",
-            filetype = "image/png",
-            height = 400,
-            width = 500
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      fluidRow(
-        h4("Once the minimum necessary columns have been assigned, the Finalize button will appear. Pressing it will lock in the column assignments (1)."),
-        h4("The data can then be viewed though the tabs at the top (2)"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help6.png",
-            filetype = "image/png",
-            height = 400,
-            width = 500
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      fluidRow(
-        h4("To calculate indicator metrics, press the Taxa tab (1)."),
-        h4("Review the input taxa data and press 'Calculate Summary Metrics' (2)"),
-        h4("Calculate may take a few minutes with large datasets. Calculated summary metrics can be viewed in the table below (3)"),
-        br(),
-        renderImage({
-          return(list(
-            src = "Rawdata_help7.png",
-            filetype = "image/png",
-            height = 400,
-            width = 500
-          ))
-        }, deleteFile = FALSE),
-        br()
-      ),
-      hr(),
-      
-      footer = modalButton("Dismiss"),
-      easyClose = TRUE
-    ))
-  })
+          ),
+          hr(),
+          box(width=12,
+              fluidRow(
+                h4("1) Select your input file from the Data Input / Raw Data upload tab:"),
+                br(),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help1.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 500
+                  ))
+                }, deleteFile = FALSE),
+                br()
+              ),
+              hr(),
+              fluidRow(
+                h4("2) Select the format of your input data (see exampled above)"),
+                br(),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help2.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 500
+                  ))
+                }, deleteFile = FALSE),
+                br()
+              ),
+              hr(),
+              fluidRow(
+                h4(" 3) Highlight column(s) (multiple while holding shift) and assign them to the appropriate attributes"),
+                br(),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help3.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 600
+                  ))
+                }, deleteFile = FALSE),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help4.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 600
+                  ))
+                }, deleteFile = FALSE),
+                br()
+              ),
+              hr(),
+              fluidRow(
+                h4("Some attributes (i.e. Coordinates) are selected from dropdown menus (1)"),
+                br(),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help5.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 500
+                  ))
+                }, deleteFile = FALSE),
+                br()
+              ),
+              hr(),
+              fluidRow(
+                h4("Once the minimum necessary columns have been assigned, the Finalize button will appear. Pressing it will lock in the column assignments (1)."),
+                h4("The data can then be viewed though the tabs at the top (2)"),
+                br(),
+                renderImage({
+                  return(list(
+                    src = "Rawdata_help6.png",
+                    filetype = "image/png",
+                    height = 400,
+                    width = 500
+                  ))
+                }, deleteFile = FALSE),
+                br()
+              ),
+              hr(),
+              fluidRow(
+                h4("Additional tools may now be available from the sidebar depending on what data were specified:"),
+                h4("- Indicator metrics can be further transformed from the Data Input / Metric Transformations tab"),
+                h4("- If GIS coordinates and ESPG codes are specified, the Mapping tab will be functional"),
+                h4("- If samples were classified as 'test' or 'reference' and habitat data or a matrix of user matched reference sites are supplied, the Integrity Assessments tab will be functional"),
+                br()
+              )
+              
+              ),
+          
+          footer = modalButton("Dismiss"),
+          easyClose = TRUE
+        ))
+      }
+    })
   
   output$download_ex_long<-downloadHandler(filename = function() { paste("Long_example.csv") },
                                             content = function(file) {write.csv(read.csv("Long_example.csv",header=T),file,row.names = F)})
