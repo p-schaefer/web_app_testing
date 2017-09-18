@@ -15,8 +15,9 @@ library(leaflet.minicharts)
 # Header
 ##################################################
 header <- shinydashboard::dashboardHeader(
-  title = "Benthic Analysis Online Tool - Development Version",
-  titleWidth = 550,
+  title="EcoPulse",
+  #title = "Benthic Analysis Online Tool - Development Version",
+  #titleWidth = 550,
   dropdownMenu(type = "notifications",
                notificationItem(
                  text = "Development version",
@@ -55,7 +56,7 @@ sidebar <- shinydashboard::dashboardSidebar(
                                                          )
                                ),
                                menuItem("Mapping",tabName="Mapping", icon=icon("map"),
-                                        menuSubItem("Setup",tabName = "map_options",icon=NULL),
+                                        menuSubItem("Options",tabName = "map_options",icon=NULL),
                                         conditionalPanel("input.sidebarmenu === 'map_options'",
                                                          selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points")),
                                                          conditionalPanel("input.map_pointtype ='Points'",
@@ -73,7 +74,7 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         )
                                ),
                                menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
-                                        menuSubItem("Setup",tabName = "explorationSetup",icon=NULL)
+                                        menuSubItem("In Development",tabName = "explorationSetup",icon=NULL)
                                ),
                                menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
                                         menuSubItem("Single",tabName="RCA_sub",icon=NULL),
@@ -84,7 +85,7 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         
                                ),
                                menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
-                                        menuSubItem("Setup",tabName = "TrendsSetup",icon=NULL)
+                                        menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
                                )
                    )
   )
@@ -104,26 +105,25 @@ body <- shinydashboard::dashboardBody(
           
           conditionalPanel("input.sidebarmenu === 'introduction'",
                            column(width=6,
-                                  box(title=h3("Online tool for analysis of aquatic biomonitoring data"),width=12,status="info",collapsible = F, collapsed = F,solidHeader = F,
-                                      h4("UNDER HEAVY DEVELOPMENT"),
+                                  box(title=h2("Online tool for Aquatic Ecosystem Assessments"),width=12,status="info",collapsible = F, collapsed = F,solidHeader = F,
+                                      h5("Early Release Version"),
                                       hr(),
-                                      helpText("A website for the analysis of Benthic Macroinvertebrate (BMI) data
-                                     using a Reference Condition Approach. Impairment is determined using the Test Site Analysis (TSA). 
-                                     This package provides functionallity for:"),
-                                      helpText("1) calculation of many commonly used indicator metrics for assessing the status BMI communities;"),
-                                      helpText("2) nearest-neighbour site matching using Assessment by Nearest-Neighbour
-                                        Analysis (ANNA), the Redundancy Analysis variant of ANNA (RDA-ANNA) or user-defined reference sites;"),
-                                      helpText("3) calculation of common Test Site Analysis parameters, including: F-statistic, non-centrality parameter, interval and equivalnce tests,
-                                     z-scores for all calculated metrics, mahalanobis distance scores for all sites, partial mahalanobis distance scores
-                                     for assessing significance of individual metrics, as well as upper and lower thresholds for impairment ranks;"),
-                                      helpText("4) a variety of diagnostic plots and tools for assessing the confidence of the impairment rank. These include a non-paramtetric randomization
-                                     test for the impairment rank, jacknife confidence intervals and consistency scores of the selected reference sites and jacknife consistancy of the 
-                                     entire reference set.")
-                                      
+                                      helpText("This website provides tools to assist in making assessments on aquatic ecosystems."),
+                                      helpText("This package provides functionallity for:"),
+                                      helpText("1) calculation of indicator benthic macroinvertebrate indicator metrics from taxon count data"),
+                                      helpText("  - Users can supply additional metrics such as: fisheries, diatoms, algae, etc."),
+                                      helpText("2) visualizing spatial patterns in taxa and indicator metrics through built-in GIS functionallity (still limited)"),
+                                      helpText("3) An implimentation of a Reference Condition Approach for making assessments of aquatic ecosystem integrity. The following tools are available:"),
+                                      helpText("   - Nearest-Neighbour Site Matching between 'test' and 'reference' sites (ANNA and RDA-ANNA) using user supplied habitat descriptors"),
+                                      helpText("   - user-supplied matrix of matched 'test' and 'reference' sites"),
+                                      helpText("   - Test Site Analysis (TSA) to evaluate whether biological communities at test sites are significantly different from variation observed in nearest-neighbour reference sites"),
+                                      helpText("   - A variety of diagnostic plots and tools for assessing confidence of impairment ranks"),
+                                      hr(),
+                                      actionButton("getting_started", "Getting Started")
                                   )
                            ),
                            column(width=4,offset=1,
-                                  box(title="Implemented features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
+                                  box(title="Implemented features",width=12,status="info",collapsible = T, collapsed = F,solidHeader = T,
                                       helpText("- Single input file for the follow data types: taxa or metrics, habitat descriptors, coordinates of sampling point"),
                                       helpText("- Support for long and wide data formats (long format recommended for lowest-practical-level taxonomy)"),
                                       helpText("- Support for wide data formats with multiple column headers"),
@@ -132,19 +132,26 @@ body <- shinydashboard::dashboardBody(
                                       helpText("- Functional metrics can be calculated below family level"),
                                       helpText("- Download calculated Summary metrics as .csv file"),
                                       helpText("- Download calculated Taxa Attribute Data as .csv file"),
-                                      helpText("- Common transformations for metrics"),
-                                      helpText("- Mapping of sampling locations")
-                                      
+                                      helpText("- Transformations for metrics"),
+                                      helpText("- GIS mapping of sampling locations coloured by taxa, indicator metrics or habitat variables"),
+                                      helpText("- Reference Condition Approach Integrity assessment by Test Site Analysis"),
+                                      helpText("- Matching of Test and Reference sites by nearest-neighbour methods (ANNA and RDA-ANNA)"),
+                                      helpText("- Use of user supplied reference site matches for Test Site Analysis")
                                   ),
                                   box(title="Planned features",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
+                                      helpText("- Download individual figures and automated generation of summary reports"),
                                       helpText("- Better support for lowest-practical-level taxonomy"),
-                                      helpText("- GIS intigration for mapping of test and reference sites"),
+                                      helpText("- Built-in support for fish community data"),
+                                      helpText("- Better GIS intigration for mapping of test and reference sites"),
                                       helpText("- GIS intigration for calculation of catchment and site level attributes"),
-                                      helpText("- Reference Condition Approach Bioassessment using Test Site Analysis and Assessment by Nearest-Neighbour Analysis"),
-                                      helpText("- Trend analysis using Generalized Linear Mixed-Effects models")
+                                      helpText("- Tools for better data exploration"),
+                                      helpText("- Trend analysis using Generalized Linear Mixed-Effects models"),
+                                      helpText("- Users can save and load datasets though the tool")
                                   ),
                                   box(title="Known Bugs",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
-                                      helpText("- none")
+                                      helpText("- none, but some feature states have not been fully tested"),
+                                      helpText("If you encounter any bugs or crashes, email: ecopulseanalytics@gmail.com")
+                                      
                                   )#,
                                   #actionButton("savestate","Save state"),
                                   #actionButton("loadstate","Load state")
@@ -170,71 +177,76 @@ body <- shinydashboard::dashboardBody(
                                                br()
                                              ),
                                              fluidRow(
-                                               column(width=4,
-                                                      box(title="Columns",width=12,status="primary",collapsible = F,solidHeader = T,collapsed = F,
-                                                          helpText("Highlight columns (multiple with shift) then assign them to an attribute on the right."),
-                                                          conditionalPanel(condition="input.rawFormat == 'Wide'",
-                                                                           numericInput("rawData_taxarows", label = h5("Rows of column Identifiers"), min=1,value=1)
-                                                          ),
-                                                          conditionalPanel("input.rawFormat == 'Wide' && input.rawData_taxarows == 1 ",
-                                                                           textInput("taxa_sep", label = h5("Character that separates taxa names"), value = ";")
-                                                          ),
-                                                          uiOutput("wideTaxaCols1")
-                                                      )
-                                                      
-                                               ),
-                                               column(width=4,
-                                                      conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
-                                                                       box(title="Assign Columns", width=NULL,status="success",collapsible = F,solidHeader = T,collapsed = F,
-                                                                           column(width=6,
-                                                                                  actionButton("raw.siteID.cols", "Site/Sampling Events"),
-                                                                                  br(),
-                                                                                  actionButton("raw.taxa.cols", "Taxa or Metrics"),
-                                                                                  br(),
-                                                                                  actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)"),
-                                                                                  br(),
-                                                                                  conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
+                                               conditionalPanel("output.show_rawdatabox",
+                                                                column(width=4,
+                                                                       box(title="Columns",width=12,status="primary",collapsible = F,solidHeader = T,collapsed = F,
+                                                                           helpText("Highlight columns (multiple with shift) then assign them to an attribute on the right."),
+                                                                           conditionalPanel(condition="input.rawFormat == 'Wide'",
+                                                                                            numericInput("rawData_taxarows", label = h5("Rows of column Identifiers"), min=1,value=1)
                                                                            ),
-                                                                           column(width=4,
-                                                                                  actionButton("raw.siteID.cols.rem", "Undo"),
-                                                                                  br(),
-                                                                                  actionButton("raw.taxa.cols.rem", "Undo"),
-                                                                                  br(),
-                                                                                  actionButton("raw.habitat.cols.rem", "Undo"),
-                                                                                  br(),
-                                                                                  conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
-                                                                           )
+                                                                           conditionalPanel("input.rawFormat == 'Wide' && input.rawData_taxarows == 1 ",
+                                                                                            textInput("taxa_sep", label = h5("Character that separates taxa names"), value = ";")
+                                                                           ),
+                                                                           uiOutput("wideTaxaCols1")
                                                                        )
-                                                      ),
-                                                      conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
-                                                                       box(title="Date/Time Field (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
-                                                                           actionLink("Date_field.help",h4("?")),
-                                                                           uiOutput("time_ID")
+                                                                       
+                                                                ),
+                                                                column(width=4,
+                                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                                                                        box(title="Assign Columns", width=NULL,status="success",collapsible = F,solidHeader = T,collapsed = F,
+                                                                                            column(width=6,
+                                                                                                   actionButton("raw.siteID.cols", "Site/Sampling Events"),
+                                                                                                   br(),
+                                                                                                   actionButton("raw.taxa.cols", "Taxa or Metrics"),
+                                                                                                   br(),
+                                                                                                   actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)"),
+                                                                                                   br(),
+                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
+                                                                                            ),
+                                                                                            column(width=4,
+                                                                                                   actionButton("raw.siteID.cols.rem", "Undo"),
+                                                                                                   br(),
+                                                                                                   actionButton("raw.taxa.cols.rem", "Undo"),
+                                                                                                   br(),
+                                                                                                   actionButton("raw.habitat.cols.rem", "Undo"),
+                                                                                                   br(),
+                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
+                                                                                            )
+                                                                                        )
                                                                        ),
-                                                                       box(title="Test vs. Reference (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
-                                                                           uiOutput("test.vs.ref")#,
-                                                                           #actionButton("raw.testref.cols", "Finalize Test and Reference Sites"),
-                                                                           #actionButton("raw.testref.cols.rem", "Undo")
-                                                                       ),
-                                                                       box(title="Coordinates (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
-                                                                           uiOutput("eastingCols"),
-                                                                           uiOutput("northingCols"),
-                                                                           uiOutput("ESPGCols")#,
-                                                                           #actionButton("raw.coord.cols", "Finalize Coordinates"),
-                                                                           #actionButton("raw.coord.cols.rem", "Undo"),
-                                                                           #hr(),
-                                                                           #verbatimTextOutput("view.coord.cols")
+                                                                       conditionalPanel("input.rawFormat == 'Wide'||input.rawFormat == 'Long'",
+                                                                                        box(title="Date/Time Field (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                                            actionLink("Date_field.help",h4("?")),
+                                                                                            uiOutput("time_ID")
+                                                                                        ),
+                                                                                        box(title="Test vs. Reference (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                                            uiOutput("test.vs.ref")#,
+                                                                                            #actionButton("raw.testref.cols", "Finalize Test and Reference Sites"),
+                                                                                            #actionButton("raw.testref.cols.rem", "Undo")
+                                                                                        ),
+                                                                                        box(title="Coordinates (Optional)",width=NULL,status="success",collapsible = T,solidHeader = T,collapsed = T,
+                                                                                            uiOutput("eastingCols"),
+                                                                                            uiOutput("northingCols"),
+                                                                                            uiOutput("ESPGCols")#,
+                                                                                            #actionButton("raw.coord.cols", "Finalize Coordinates"),
+                                                                                            #actionButton("raw.coord.cols.rem", "Undo"),
+                                                                                            #hr(),
+                                                                                            #verbatimTextOutput("view.coord.cols")
+                                                                                        )
                                                                        )
-                                                      )
+                                                                )
+                                                                
                                                )
                                              )
                                              
                                     ),
                                     tabPanel("Taxa",
                                              useShinyjs(),
-                                             conditionalPanel(condition="input.metdata == false && input.finalize_raw>0 && output.show_mets == true",
-                                                              box(title="Taxa",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                  DT::dataTableOutput("view.taxa")
+                                             conditionalPanel(condition="input.finalize_raw>0 && output.show_mets == true",
+                                                              conditionalPanel("input.metdata==false",
+                                                                               box(title="Taxa",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                                   DT::dataTableOutput("view.taxa")
+                                                                               )
                                                               ),
                                                               box(title="Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
                                                                   DT::dataTableOutput("view.metrics.raw")
@@ -242,12 +254,12 @@ body <- shinydashboard::dashboardBody(
                                                               br(),
                                                               fluidRow(
                                                                 column(width=3,
-                                                                       box(title="Download Data",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                           conditionalPanel(condition="input.metdata == false",
+                                                                       conditionalPanel(condition="input.metdata == false",
+                                                                                        box(title="Download Data",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
                                                                                             downloadButton("download_raw_taxa","Download Taxa Table"),
                                                                                             downloadButton("download_raw_mets","Download Summary Metrics"),
                                                                                             downloadButton("download_taxa_atts","Download Taxa Attributes")
-                                                                           )
+                                                                                        )
                                                                        )
                                                                 )
                                                               )
@@ -339,7 +351,7 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           
           conditionalPanel("input.sidebarmenu === 'userMatchRef'",
-                           uiOutput("out_usermatch.refsites")
+                           DT::dataTableOutput("out_usermatch.refsites")
           ),
           
           ##################################################
@@ -385,39 +397,44 @@ body <- shinydashboard::dashboardBody(
                                              fluidRow(
                                                column(width=8,
                                                       fluidRow(
-                                                        column(width=8,
-                                                               plotOutput("nn.ord", dblclick = "nn.ord_dblclick",
-                                                                          brush = brushOpts(
-                                                                            id = "nn.ord_brush",
-                                                                            resetOnNew = TRUE
-                                                                          )),
-                                                               helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out"),
-                                                               actionLink("NN_results_modal","Nearest-Neighbour Model Results") #Need to add this
+                                                        conditionalPanel("input.nn_method!='User Selected'",
+                                                                         column(width=8,
+                                                                                plotOutput("nn.ord", dblclick = "nn.ord_dblclick",
+                                                                                           brush = brushOpts(
+                                                                                             id = "nn.ord_brush",
+                                                                                             resetOnNew = TRUE
+                                                                                           )),
+                                                                                helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out"),
+                                                                                actionLink("NN_results_modal","Nearest-Neighbour Model Results") #Need to add this
+                                                                         ),
+                                                                         column(width=4,
+                                                                                box(width=12,
+                                                                                    uiOutput("out_nn.axis1"),
+                                                                                    uiOutput("out_nn.axis2"),
+                                                                                    checkboxInput("nnplot.hab.points","Show Habitat variables"),
+                                                                                    checkboxInput("nnplot.hab.names","Show Habitat variables"),
+                                                                                    conditionalPanel("input.nn_method=='RDA-ANNA'",
+                                                                                                     checkboxInput("nnplot.metric","Show Metric Vectors")
+                                                                                    )
+                                                                                ),
+                                                                                hr(),
+                                                                                box(width=12,
+                                                                                    conditionalPanel("input.in_test_site_select!='None'",
+                                                                                                     checkboxInput("nnplot.hull","Show Convex Hull", value=T),
+                                                                                                     checkboxInput("nnplot.refnames","Show Reference Site Names", value=T),
+                                                                                                     checkboxInput("nnplot.testsite","Show Test Site", value=T)
+                                                                                    )
+                                                                                )
+                                                                         )
                                                         ),
-                                                        column(width=4,
-                                                               box(width=12,
-                                                                   uiOutput("out_nn.axis1"),
-                                                                   uiOutput("out_nn.axis2"),
-                                                                   checkboxInput("nnplot.hab.points","Show Habitat variables"),
-                                                                   checkboxInput("nnplot.hab.names","Show Habitat variables"),
-                                                                   conditionalPanel("input.nn_method=='RDA-ANNA'",
-                                                                                    checkboxInput("nnplot.metric","Show Metric Vectors")
-                                                                   )
-                                                               ),
-                                                               hr(),
-                                                               box(width=12,
-                                                                   conditionalPanel("input.in_test_site_select!='None'",
-                                                                                    checkboxInput("nnplot.hull","Show Convex Hull", value=T),
-                                                                                    checkboxInput("nnplot.refnames","Show Reference Site Names", value=T),
-                                                                                    checkboxInput("nnplot.testsite","Show Test Site", value=T)
-                                                                   )
-                                                               )
-                                                        )
+                                                        conditionalPanel("input.nn_method=='User Selected'",
+                                                                         DT::dataTableOutput("out_usermatch.refsites1")
+                                                                         )
                                                       )
                                                ),
                                                box(title="Metric Selection",width=4,
                                                    column(width=12,
-                                                          conditionalPanel("input.nn_method=='ANNA'",
+                                                          conditionalPanel("input.nn_method!='RDA-ANNA'",
                                                           checkboxInput("useMD","Maximal-Distance Metric Selection", value=T)
                                                           )
                                                           ,
@@ -430,10 +447,13 @@ body <- shinydashboard::dashboardBody(
                                              fluidRow(
                                                box(title="Nearest-Neighbour Options",width=5,
                                                       column(width=6,
+                                                             #uiOutput("out_nn_method"),
                                                              selectInput("nn_method","NN Method", multiple=F,selectize=F,
                                                                          choices=c("ANNA","RDA-ANNA","User Selected")),
-                                                             numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
-                                                             checkboxInput("nn.scale","Scale Ordination",value=T)
+                                                             conditionalPanel("input.nn_method!='User Selected'",
+                                                                              numericInput("nn.k","Number of Reference Sites", value = 0,min=0,step=1),
+                                                                              checkboxInput("nn.scale","Scale Ordination",value=T)
+                                                                              )
                                                       ),
                                                       column(width=6,
                                                              conditionalPanel("input.nn_method!='User Selected'",
@@ -446,17 +466,21 @@ body <- shinydashboard::dashboardBody(
                                                       )
                                                       
                                                ),
-                                               box(title="Habitat Distances",width=4,
-                                                      plotOutput("nn.dist")
+                                               conditionalPanel("input.nn_method!='User Selected'",
+                                                                box(title="Habitat Distances",width=4,
+                                                                    plotOutput("nn.dist")
+                                                                )
+                                                                
                                                ),
                                                box(title="TSA Options", width=3,
-                                                   checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value=F),
+                                                   conditionalPanel("input.nn_method!='User Selected'",
+                                                                    checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value=F)
+                                                   ),
                                                    checkboxInput("tsa_outlier_rem","Remove optential outlier reference sites?",value=F),
                                                    conditionalPanel("input.tsa_outlier_rem==true",
                                                                     sliderInput("tsa_outbound", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
                                                    )
                                                )
-                                               
                                              )
                                     ),
                                     tabPanel(h4("Test Site Analysis"),
@@ -500,8 +524,10 @@ body <- shinydashboard::dashboardBody(
                                                    column(width=6,
                                                           selectInput("nn_method_b","NN Method", multiple=F,selectize=F,
                                                                       choices=c("ANNA","RDA-ANNA","User Selected")),
-                                                          numericInput("nn.k_b","Number of Reference Sites", value = 0,min=0,step=1),
-                                                          checkboxInput("nn.scale_b","Scale Ordination",value=T)
+                                                          conditionalPanel("input.nn_method_b!='User Selected'",
+                                                                           numericInput("nn.k_b","Number of Reference Sites", value = 0,min=0,step=1),
+                                                                           checkboxInput("nn.scale_b","Scale Ordination",value=T)
+                                                          )
                                                    ),
                                                    column(width=6,
                                                           conditionalPanel("input.nn_method_b!='User Selected'",
@@ -512,14 +538,12 @@ body <- shinydashboard::dashboardBody(
                                                                            )
                                                           )
                                                    )
-                                                   
                                                ),
                                                box(title="Metric Selection",width=4,
                                                    column(width=12,
-                                                          conditionalPanel("input.nn_method_b=='ANNA'",
+                                                          conditionalPanel("input.nn_method_b!='RDA-ANNA'",
                                                           checkboxInput("useMD_b","Maximal-Distance Metric Selection", value=T)
-                                                          )
-                                                          ,
+                                                          ),
                                                           uiOutput("out_metric.select_b")
                                                    )
                                                    
@@ -539,7 +563,8 @@ body <- shinydashboard::dashboardBody(
                                     tabPanel(h4("Results"),
                                              fluidRow(
                                                box(title="Summary",
-                                                   tableOutput("tsa_bulk_table"),
+                                                   uiOutput("out_tsa_bulk_table_sumby"),
+                                                   dataTableOutput("tsa_bulk_table"),
                                                    downloadButton("download_tsa_batch","Download")
                                                )
                                              ),

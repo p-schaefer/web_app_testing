@@ -23,10 +23,20 @@ library(fmsb)
 library(sf)
 library(googlesheets)
 library(googledrive)
+library(gsheet)
+
 
 options(shiny.maxRequestSize=30*1024^2)
 
-userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/1pJvhMR02pdqhRnitFHXUx8HYRr9jWiBuiTwDJ_VIP5M/pub?output=csv")))
+#gap<-gs_title("AEAtool_IDs")
+#data.frame(gs_read(gap))
+#gs_ws_ls()
+#(GAP_URL <- gs_gap_url())
+#userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/e/2PACX-1vR1yZS2cHiV6Pcy9Ea8MXBUo-tIw3jUGf4241TyUh3URo4L1osSv6WfVH7Z_Xou1-rpwa9WWTOgNZYC/pub?gid=142358852&single=true&output=csv")))
+#userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/1pJvhMR02pdqhRnitFHXUx8HYRr9jWiBuiTwDJ_VIP5M/pub?output=csv")))
+
+#gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1sE5ykRJe2hiUxKnX2NLszil4GsWkBH3pwZEuj8-Ge60/edit?usp=sharing')
+
 
 shinyServer(function(input, output, session) {
   
@@ -38,13 +48,15 @@ shinyServer(function(input, output, session) {
   login.modal<-function(failed=F){
     modalDialog(
       size="s",
-      textInput("username","User Name"),
-      passwordInput("password","Password"),
-      helpText("To request a username and password email: ecopulseanalytics@gmail.com"),
+      textInput("username","Email Address"),
+      passwordInput("password","Login ID"),
+      helpText(a("Create Account",target="_blank", href="https://docs.google.com/forms/d/e/1FAIpQLSd4V_kuS-AiyOPcqA8hjVtOlV2VoSXq4Izb0Il4rjE2osq3FA/viewform?usp=sf_link")),
+      #helpText(a("Create Account",target="_blank", href="https://docs.google.com/forms/d/e/1FAIpQLSezlBS8yoJCzQONq422c4uys9OdURXzUW1Q2dl3k7_Fwz4uDA/viewform?usp=sf_link")),
+      helpText("For help email: ecopulseanalytics@gmail.com"),
       footer = actionButton("login","Login"),
       easyClose = F,
       if (failed){
-        div(tags$b("Invalid user name or password", style = "color: red;"))
+        div(tags$b("Invalid Email Address or Login ID", style = "color: red;"))
       }
     )
   }
@@ -53,10 +65,15 @@ shinyServer(function(input, output, session) {
     showModal(login.modal())
   }
   
+
   observeEvent(input$login, {
+    userIDs<-as.data.frame(gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1sE5ykRJe2hiUxKnX2NLszil4GsWkBH3pwZEuj8-Ge60/edit?usp=sharing'))
+    
+    #userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/1pJvhMR02pdqhRnitFHXUx8HYRr9jWiBuiTwDJ_VIP5M/pub?output=csv")))
+    
     # Check that data object exists and is data frame.
-    userIDs1<-userIDs[,userIDs$UserID==input$username]
-    if (input$username==userIDs1$UserID & input$password==userIDs1$Password) {
+    userIDs1<-userIDs[,userIDs$`Email Address`==input$username]
+    if ((input$username==userIDs1$`Email Address` & input$password==userIDs1$`Login ID`) & nrow(userIDs1)!=0) {
       removeModal()
       output$loggedin1<-reactive({TRUE})
       outputOptions(output, "loggedin1", suspendWhenHidden = FALSE)
@@ -669,7 +686,7 @@ shinyServer(function(input, output, session) {
             }
             
             output<-data.frame(as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%reftest.ID.cols$data])))
-            output<-output[!duplicated(site.names),]
+            output<-data.frame(output[!duplicated(site.names),])
             rownames(output)<-site.names[!duplicated(site.names)]
             colnames(output)<-reftest.ID.cols$data
           }
