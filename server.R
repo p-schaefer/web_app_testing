@@ -79,11 +79,12 @@ shinyServer(function(input, output, session) {
       removeModal()
       output$loggedin1<-reactive({TRUE})
       outputOptions(output, "loggedin1", suspendWhenHidden = FALSE)
-      
-    } else {
-      showModal(login.modal(failed = TRUE))
       loggedin<-TRUE
       loggedin1$data<-TRUE
+    } else {
+      showModal(login.modal(failed = TRUE))
+      #loggedin<-TRUE
+      #loggedin1$data<-TRUE
     }
   })
   
@@ -2411,7 +2412,7 @@ shinyServer(function(input, output, session) {
     c(input$raw.help,
       input$getting_started
     ), {
-      if ((input$getting_started>0 || input$raw.help>0) && loggedin1$data==T){
+      if ((input$getting_started>0 | input$raw.help>0) & loggedin1$data==T){
         showModal(modalDialog(
           size="l",
           title = "Upload and define Raw Data",
