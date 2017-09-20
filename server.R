@@ -72,7 +72,7 @@ shinyServer(function(input, output, session) {
     #userIDs<-as.data.frame(gs_read(gs_url("https://docs.google.com/spreadsheets/d/1pJvhMR02pdqhRnitFHXUx8HYRr9jWiBuiTwDJ_VIP5M/pub?output=csv")))
     
     # Check that data object exists and is data frame.
-    userIDs1<-userIDs[,userIDs$`Email Address`==input$username]
+    userIDs1<-userIDs[userIDs$`Email Address`==input$username,]
     if ((input$username==userIDs1$`Email Address` & input$password==userIDs1$`Login ID`) & nrow(userIDs1)!=0) {
       removeModal()
       output$loggedin1<-reactive({TRUE})
@@ -2408,7 +2408,7 @@ shinyServer(function(input, output, session) {
     c(input$raw.help,
       input$getting_started
     ), {
-      if (input$getting_started>0 | input$raw.help>0){
+      if ((input$getting_started>0 | input$raw.help>0) & loggedin==T){
         showModal(modalDialog(
           size="l",
           title = "Upload and define Raw Data",
