@@ -767,11 +767,11 @@ shinyServer(function(input, output, session) {
   output$view.metrics.raw<-renderDataTable(
     DT::datatable(bio.data$data$Summary.Metrics, options=list(pageLength = 5,scrollX=T))
   )
-  output$download_raw_mets<-downloadHandler(filename = function() { paste("Metrics-",input$inrawbioFile, sep='') },
+  output$download_raw_mets<-downloadHandler(filename = function() { paste("Metrics-",input$inrawbioFile[1], sep='') },
                                             content = function(file) {write.csv(bio.data$data$Summary.Metrics,file,row.names = T)})
-  output$download_raw_taxa<-downloadHandler(filename = function() { paste("Taxa-",input$inrawbioFile, sep='') },
+  output$download_raw_taxa<-downloadHandler(filename = function() { paste("Taxa-",input$inrawbioFile[1], sep='') },
                                             content = function(file) {write.csv(taxa.by.site$data,file,row.names = T)})
-  output$download_taxa_atts<-downloadHandler(filename = function() { paste("Attributes-",input$inrawbioFile, sep='') },
+  output$download_taxa_atts<-downloadHandler(filename = function() { paste("Attributes-",input$inrawbioFile[1], sep='') },
                                              content = function(file) {write.csv(bio.data$data$Attributes,file,row.names = T)})
   
   
@@ -1046,13 +1046,13 @@ shinyServer(function(input, output, session) {
       all.data$data <- data.frame(cbind(all.data$data,reftest.by.site$data))
     }
     
-    if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
-      all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
-      missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
-      all.data$data$east[is.na(all.data$data$east)]<-coordinates.by.site$data.unique$east[match(missing.sites,rownames(coordinates.by.site$data.unique))]
-      all.data$data$north[is.na(all.data$data$north)]<-coordinates.by.site$data.unique$north[match(missing.sites,rownames(coordinates.by.site$data.unique))]
-      rownames(all.data$data)<-apply(all.data$data[,site.ID.cols$data], 1 , function(x) paste(x,collapse=";",sep=";"))
-    }
+    #if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
+    #  all.data$data <- data.frame(merge(all.data$data,missing.sampling.events$full.data,all=T))
+    #  missing.sites<-as.character(all.data$data[is.na(all.data$data$east),(colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID)])
+    #  all.data$data$east[is.na(all.data$data$east)]<-coordinates.by.site$data.unique$east[match(missing.sites,rownames(coordinates.by.site$data.unique))]
+    #  all.data$data$north[is.na(all.data$data$north)]<-coordinates.by.site$data.unique$north[match(missing.sites,rownames(coordinates.by.site$data.unique))]
+    #  rownames(all.data$data)<-apply(all.data$data[,site.ID.cols$data], 1 , function(x) paste(x,collapse=";",sep=";"))
+    #}
     
     #if (!is.null(tsa.results$data) & class(tsa.results$data)!="try-error"){
     #  all.data$data<-data.frame(cbind(all.data$data,tsa.results$data))
@@ -1650,11 +1650,13 @@ shinyServer(function(input, output, session) {
       tsa.batch.outout$data$Significant.Metrics[rownames(tsa.batch.outout$data)%in%passed.sites]<-sapply(tsa.results_b$output.list[passed.sites], function(x)x[["general.results"]][4,])
       tsa.batch.outout$data$Reference.Set[rownames(tsa.batch.outout$data)%in%passed.sites]<-sapply(tsa.results_b$output.list[passed.sites], function(x)x[["general.results"]][2,])
       tsa.batch.outout$data$Reference.Set[rownames(tsa.batch.outout$data)%in%error.sites]<-sapply(tsa.results_b$output.list[error.sites], function(x)x[[1]])
-    })
+    
+      tsa.batch.outout$data$Reference.Set<-as.character(tsa.batch.outout$data$Reference.Set)
+      })
   })
   
-  output$download_tsa_batch<-downloadHandler(filename = function() { paste("Batch_Results-",input$inrawbioFile, sep='') },
-                                            content = function(file) {write.csv(tsa.batch.outout$data,file,row.names = T)})
+  
+
   
   observeEvent(input$TSA_results_modal_b,{
     tsa.object<-tsa.results_b$output.list[which(names(tsa.results_b$output.list)%in%input$in_batch_test_result_select)]
@@ -1726,6 +1728,10 @@ shinyServer(function(input, output, session) {
       validate(need(F,"Must run Batch Mode First"))
     }
   })
+  
+  output$download_tsa_batch<-downloadHandler(filename = function() { paste("Batch_Results-",input$inrawbioFile[1], sep='') },
+                                             content = function(file) {write.csv(as.data.frame(tsa.batch.outout$data),file,row.names = T)})
+  
   
   output$out_batch_test_result_select<-renderUI({
     validate(need(!is.null(tsa.batch.outout$data),""))
@@ -2264,7 +2270,8 @@ shinyServer(function(input, output, session) {
       #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
       #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
       Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%"TSA.Impairment"]
     ),multiple = FALSE)
   })
   
@@ -2295,7 +2302,7 @@ shinyServer(function(input, output, session) {
     }
     proj4string(map.coordinates)<-CRS("+init=epsg:4326")
     
-    if (input$time.ID!="" & !is.null(input$in.map_time_variables)){
+    if (input$time.ID!="" && !is.null(input$in.map_time_variables)){
       if (input$in.map_time_variables!="All"){
         map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$time.ID]==input$in.map_time_variables)
         map.coordinates<-subset(map.coordinates,!is.na(map.coordinates@data[,input$in.map_chart_variables]))
@@ -2303,10 +2310,11 @@ shinyServer(function(input, output, session) {
     }
 
     Map = sf::st_as_sf(map.coordinates)
-    m<-mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter"))
+    #m<-mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter"))
     
     if (input$map_pointtype=="Points"){
-      m<- m + mapview(Map,zcol=input$in.map_chart_variables,legend=input$map_legend,
+      m<- mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter")) + 
+        mapview(Map,zcol=paste0(input$in.map_chart_variables),legend=T,na.color ="grey10",position="topright",#legend=input$map_legend,
                       col.region=colorRampPalette(brewer.pal(9, input$map_pointcol))
       )
     }
@@ -2542,7 +2550,7 @@ shinyServer(function(input, output, session) {
   output$download_ex_wide1<-downloadHandler(filename = function() { paste("Wide_example1.csv") },
                                            content = function(file) {write.csv(read.csv("Wide_example1.csv",header=T),file,row.names = F)})
   output$download_ex_wide2<-downloadHandler(filename = function() { paste("Wide_example2.csv") },
-                                           content = function(file) {write.csv(read.csv("Wide_example2.csv",header=T),file,row.names = F)})
+                                           content = function(file) {write.table(read.csv("Wide_example2.csv",header=F),file,row.names = F,col.names=F, sep = ",")})
   
   
   #Raw Data input

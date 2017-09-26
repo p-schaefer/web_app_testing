@@ -565,7 +565,7 @@ body <- shinydashboard::dashboardBody(
                                                box(title="Summary",
                                                    uiOutput("out_tsa_bulk_table_sumby"),
                                                    dataTableOutput("tsa_bulk_table"),
-                                                   downloadButton("download_tsa_batch","Download")
+                                                   downloadButton("download_tsa_batch","Download all results")
                                                )
                                              ),
                                              fluidRow(
