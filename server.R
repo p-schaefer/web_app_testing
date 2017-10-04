@@ -2265,14 +2265,26 @@ shinyServer(function(input, output, session) {
     validate(
       need(!is.null(all.data$data),"")
     )
-    selectInput("in.map_chart_variables",label="Chart Variables",choices=list(
-      Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
-      #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
-      #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
-      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%"TSA.Impairment"]
-    ),multiple = FALSE)
+    if (input$map_pointtype=="Points") {
+      l1<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%reftest.ID.cols$data],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%"TSA.Impairment"]
+      )
+    }
+    if (input$map_pointtype=="Pie") {
+      l1<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Feeding_Abundances=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Abundances=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)]
+      )
+    }
+    selectInput("in.map_chart_variables",label="Chart Variables",choices=l1,multiple = if (input$map_pointtype=="Pie"){TRUE} else {FALSE})
   })
   
   output$out.map_time_variables<-renderUI({
@@ -2287,37 +2299,95 @@ shinyServer(function(input, output, session) {
                  selected="All")
   })
   
+  map.data<-reactiveValues(map.null=NULL,map.mod=NULL)
+  
+  observeEvent(c(input$finalize_raw),
+               {
+                 validate(
+                   need(!is.null(coordinates.by.site$data.unique),"")
+                 )
+                 
+                 map.coordinates<-all.data$data
+                 
+                 if(is.null(is.null(map.coordinates$east))){
+                   eval(parse(text=paste0("coordinates(map.coordinates) <- ~",paste0(coord.ID.cols$east),"+",paste0(coord.ID.cols$north))))
+                 } else {
+                   coordinates(map.coordinates) <- ~east+north
+                 }
+                 proj4string(map.coordinates)<-CRS("+init=epsg:4326")
 
+                 #Map = sf::st_as_sf(map.coordinates)
+                 Map = map.coordinates
+                 map.data$map.null<-Map
+               })
+  
+  observeEvent(c(input$in.map_chart_variables
+                 ,input$in.map_time_variables),
+               {
+                 validate(
+                   need(!is.null(coordinates.by.site$data.unique),"")
+                 )
+                 
+                 map.coordinates<-map.data$map.null
+
+                 if (input$time.ID!="" && !is.null(input$in.map_time_variables)){
+                   if (input$in.map_time_variables!="All"){
+                     map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$time.ID]==input$in.map_time_variables)
+                     #map.coordinates<-map.coordinates[map.coordinates[,input$time.ID][[1]]==input$in.map_time_variables,input$in.map_chart_variables]
+                     #map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables][[1]]))
+                     map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables]))
+                   } else {
+                     #map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$in.map_chart_variables])
+                     #map.coordinates<-map.coordinates[,input$in.map_chart_variables]
+                     #map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables][[1]]))
+                     #map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables]))
+                   }
+                 }
+                 
+                 #Map = sf::st_as_sf(map.coordinates)
+                 Map = map.coordinates
+                 map.data$map.mod<-Map
+               })
+  
   output$mymap<-renderLeaflet({
     validate(
       need(!is.null(coordinates.by.site$data.unique),"")
     )
+    validate(
+      need(!is.null(input$in.map_time_variables),"")
+    )
+    Map<-map.data$map.mod
     
-    map.coordinates<-all.data$data
+    #mapviewOptions(legend = input$map_legend, legend.pos="topright")
     
-    if(is.null(is.null(map.coordinates$east))){
-      eval(parse(text=paste0("coordinates(map.coordinates) <- ~",paste0(coord.ID.cols$east),"+",paste0(coord.ID.cols$north))))
-    } else {
-      coordinates(map.coordinates) <- ~east+north
-    }
-    proj4string(map.coordinates)<-CRS("+init=epsg:4326")
-    
-    if (input$time.ID!="" && !is.null(input$in.map_time_variables)){
-      if (input$in.map_time_variables!="All"){
-        map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$time.ID]==input$in.map_time_variables)
-        map.coordinates<-subset(map.coordinates,!is.na(map.coordinates@data[,input$in.map_chart_variables]))
-      }
-    }
-
-    Map = sf::st_as_sf(map.coordinates)
-    #m<-mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter"))
+    #m <- mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter"))
     
     if (input$map_pointtype=="Points"){
-      m<- mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter")) + 
-        mapview(Map,zcol=paste0(input$in.map_chart_variables),legend=T,na.color ="grey10",position="topright",#legend=input$map_legend,
+      m<- #m + 
+        mapview(Map,zcol=paste0(input$in.map_chart_variables),na.color ="grey10",#,position="topright",#legend=F,#legend=input$map_legend,
                       col.region=colorRampPalette(brewer.pal(9, input$map_pointcol))
+                ,map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter")
       )
     }
+    if (input$map_pointtype=="Pie"){
+          m<-addMinicharts(
+            map = mapview(map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter")),
+            lng=all.data$data$east,
+            lat=all.data$data$north,
+            layerId=all.data$data[,colnames(all.data$data)%in%site.ID.cols$data & !colnames(all.data$data)%in%input$time.ID],
+            #width = input$map_chart_site,
+            #height = input$map_chart_site,
+            #maxValues<-aggregate(feeding.data$data.reduced,by=list(coordinates.by.site$data.all[,input$time.ID]),max),
+            type="pie",
+            chartdata=all.data$data[,colnames(all.data$data)%in%input$in.map_chart_variables],
+            time=all.data$data[,input$time.ID],
+            showLabels = T,
+            legendPosition = "bottomleft"#,
+            #colorPalette=colorRamps::primary.colors(ncol(data[colnames(data)%in%colnames(feeding.data$data.reduced)]))
+          )
+      
+    }
+    
     
     m@map
   })

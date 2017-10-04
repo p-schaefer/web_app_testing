@@ -58,7 +58,8 @@ sidebar <- shinydashboard::dashboardSidebar(
                                menuItem("Mapping",tabName="Mapping", icon=icon("map"),
                                         menuSubItem("Options",tabName = "map_options",icon=NULL),
                                         conditionalPanel("input.sidebarmenu === 'map_options'",
-                                                         selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points")),
+                                                         selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points"#,"Pie"="Pie"
+                                                                                                              )),
                                                          conditionalPanel("input.map_pointtype ='Points'",
                                                                           selectInput("map_pointcol","Colours", 
                                                                                       choices=list(
