@@ -217,7 +217,7 @@ shinyServer(function(input, output, session) {
                                        ])    
   })
   output$test.vs.ref = renderUI({#taxa/metric ID when 2 or more rows used for identifiers - wide format
-    selectInput(inputId="raw.testrefcols", label=h5('Test(1) or Reference(0) Site'), multiple = F,selectize=T,selected = "",
+    selectInput(inputId="raw.testrefcols", label=h5('Test(0) or Reference(1) Site'), multiple = F,selectize=T,selected = "",
                 choices=c("None",raw.colnames()[!raw.colnames()%in%taxa.ID.cols$data&
                                          !raw.colnames()%in%habitat.ID.cols$data&
                                          !raw.colnames()%in%abund.ID.cols$data&
