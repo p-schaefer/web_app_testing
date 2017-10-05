@@ -58,7 +58,8 @@ sidebar <- shinydashboard::dashboardSidebar(
                                menuItem("Mapping",tabName="Mapping", icon=icon("map"),
                                         menuSubItem("Options",tabName = "map_options",icon=NULL),
                                         conditionalPanel("input.sidebarmenu === 'map_options'",
-                                                         selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points")),
+                                                         selectInput("map_pointtype", "Map symbols",choices=c("Points"="Points"#,"Pie"="Pie"
+                                                                                                              )),
                                                          conditionalPanel("input.map_pointtype ='Points'",
                                                                           selectInput("map_pointcol","Colours", 
                                                                                       choices=list(
@@ -480,7 +481,7 @@ body <- shinydashboard::dashboardBody(
                                                    conditionalPanel("input.nn_method!='User Selected'",
                                                                     checkboxInput("tsa_weighted","Weight Reference sites by habitat distance?",value=F)
                                                    ),
-                                                   checkboxInput("tsa_outlier_rem","Remove optential outlier reference sites?",value=F),
+                                                   checkboxInput("tsa_outlier_rem","Remove potential outlier reference sites?",value=F),
                                                    conditionalPanel("input.tsa_outlier_rem==true",
                                                                     sliderInput("tsa_outbound", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
                                                    )
@@ -554,7 +555,7 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                box(title="TSA Options", width=3,
                                                    checkboxInput("tsa_weighted_b","Weight Reference sites by habitat distance?",value=F),
-                                                   checkboxInput("tsa_outlier_rem_b","Remove optential outlier reference sites?",value=F),
+                                                   checkboxInput("tsa_outlier_rem_b","Remove potential outlier reference sites?",value=F),
                                                    conditionalPanel("input.tsa_outlier_rem_b==true",
                                                                     sliderInput("tsa_outbound_b", "Outlier Coefficient", min=0.01,max=0.99,value=0.1)
                                                    )
@@ -569,7 +570,7 @@ body <- shinydashboard::dashboardBody(
                                                box(title="Summary",
                                                    uiOutput("out_tsa_bulk_table_sumby"),
                                                    dataTableOutput("tsa_bulk_table"),
-                                                   downloadButton("download_tsa_batch","Download")
+                                                   downloadButton("download_tsa_batch","Download all results")
                                                )
                                              ),
                                              fluidRow(
