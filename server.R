@@ -1186,14 +1186,17 @@ shinyServer(function(input, output, session) {
         reference.sites<-reference.sites[reference.sites$Ref==T,]
       }
       
+      x.ax.lab<-paste0(input$in_nn.axis1," (",strtrim(nn.sites$data$var.explained*100, 4)[colnames(nn.sites$data$env.ordination.scores)==input$in_nn.axis1],"%)")
+      y.ax.lab<-paste0(input$in_nn.axis2," (",strtrim(nn.sites$data$var.explained*100, 4)[colnames(nn.sites$data$env.ordination.scores)==input$in_nn.axis2],"%)")
+      
       p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=input$in_nn.axis1, y=input$in_nn.axis2)) + 
         geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
         geom_point(aes(color=Class))  + theme_bw() + 
         labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method)#,
              #subtitle=if(input$in_test_site_select!="None"){paste0(input$in_test_site_select)} else {NULL}
         ) +
-        xlab(paste0(input$in_nn.axis1)) + 
-        ylab(paste0(input$in_nn.axis2)) +
+        xlab(paste0(x.ax.lab)) + 
+        ylab(paste0(y.ax.lab)) +
         coord_cartesian(xlim = nn.ord.ranges$x, ylim = nn.ord.ranges$y, expand = TRUE)
 
       if (input$nnplot.hab.points){
@@ -1936,12 +1939,17 @@ shinyServer(function(input, output, session) {
         reference.sites<-reference.sites[reference.sites$Ref==T,]
       }
       
+      x.ax.lab<-paste0("PC1 (",strtrim(nn.sites$data$var.explained*100, 4)[1],"%)")
+      y.ax.lab<-paste0("PC2 (",strtrim(nn.sites$data$var.explained*100, 4)[2],"%)")
+
       p1 <- ggplot(data=nn.sites$data$ordination.scores,aes_string(x=colnames(nn.sites$data$ordination.scores)[1], y=colnames(nn.sites$data$ordination.scores)[2])) + 
         geom_vline(xintercept = 0, color="darkgrey") + geom_hline(yintercept = 0, color="darkgrey") +
         geom_point(aes(color=Class))  + theme_bw() + 
         labs(title=paste0("Nearest-neighbour Ordination by ",input$nn_method_b)#,
              #subtitle=if(input$in_batch_test_result_select!="None"){paste0(input$in_batch_test_result_select)} else {NULL}
-        )
+        )+
+        xlab(paste0(x.ax.lab)) + 
+        ylab(paste0(y.ax.lab))
       
       p1<- p1 + geom_polygon(data=hull[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])],alpha=0.5)
       p1<- p1 + geom_text(data=reference.sites[,c(colnames(nn.sites$data$ordination.scores)[1],colnames(nn.sites$data$ordination.scores)[2])], label=rownames(reference.sites))
@@ -2267,7 +2275,6 @@ shinyServer(function(input, output, session) {
     validate(
       need(!is.null(all.data$data),"")
     )
-<<<<<<< HEAD
     if(input$metdata==F){
       avail.params<-list(
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
@@ -2288,7 +2295,6 @@ shinyServer(function(input, output, session) {
     
     selectInput("in.map_chart_variables",label="Chart Variables",choices=avail.params,multiple = FALSE)
     
-=======
     if (input$map_pointtype=="Points") {
       l1<-list(
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
@@ -2297,7 +2303,7 @@ shinyServer(function(input, output, session) {
         Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
         Reference=colnames(all.data$data)[colnames(all.data$data)%in%reftest.ID.cols$data],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%"TSA.Impairment"]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
       )
     }
     if (input$map_pointtype=="Pie") {
@@ -2309,7 +2315,6 @@ shinyServer(function(input, output, session) {
       )
     }
     selectInput("in.map_chart_variables",label="Chart Variables",choices=l1,multiple = if (input$map_pointtype=="Pie"){TRUE} else {FALSE})
->>>>>>> 6685df8b608ce8bd32cce9ed07acc312188a3d71
   })
   
   output$out.map_time_variables<-renderUI({
@@ -2326,7 +2331,13 @@ shinyServer(function(input, output, session) {
   
   map.data<-reactiveValues(map.null=NULL,map.mod=NULL)
   
-  observeEvent(c(input$finalize_raw),
+  observeEvent(c(input$finalize_raw,
+                 input$calculate_metrics,
+                 input$apply.trans,
+                 input$apply.trans.batch,
+                 input$habitat_convert_fact_to_numb,
+                 input$habitat_convert_numb_to_fact,
+                 input$tsa_batch_go),
                {
                  validate(
                    need(!is.null(coordinates.by.site$data.unique),"")
@@ -2360,7 +2371,7 @@ shinyServer(function(input, output, session) {
                      map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$time.ID]==input$in.map_time_variables)
                      #map.coordinates<-map.coordinates[map.coordinates[,input$time.ID][[1]]==input$in.map_time_variables,input$in.map_chart_variables]
                      #map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables][[1]]))
-                     map.coordinates<-subset(map.coordinates,!is.na(map.coordinates[,input$in.map_chart_variables]))
+                     map.coordinates<-subset(map.coordinates,!is.na(map.coordinates@data[,input$in.map_chart_variables]))
                    } else {
                      #map.coordinates<-subset(map.coordinates,map.coordinates@data[,input$in.map_chart_variables])
                      #map.coordinates<-map.coordinates[,input$in.map_chart_variables]
@@ -2389,7 +2400,7 @@ shinyServer(function(input, output, session) {
     
     if (input$map_pointtype=="Points"){
       m<- #m + 
-        mapview(Map,zcol=paste0(input$in.map_chart_variables),na.color ="grey10",#,position="topright",#legend=F,#legend=input$map_legend,
+        mapview(Map,zcol=paste0(input$in.map_chart_variables),na.color ="grey10",position="topright",legend=input$map_legend,
                       col.region=colorRampPalette(brewer.pal(9, input$map_pointcol))
                 ,map.types=c("Esri.WorldTopoMap", "Esri.WorldImagery","Esri.NatGeoWorldMap", "CartoDB.Positron", "CartoDB.DarkMatter")
       )
@@ -2499,7 +2510,7 @@ shinyServer(function(input, output, session) {
   #Reports
   #########################################################
   #########################################################
-  # Define element areas
+  #   Define element areas
   #########################################################
   
   #report_layout_table<-reactiveValues(data=NULL, orientation=NULL, height=NULL,width=NULL,row.height=NULL,col.width=NULL)
@@ -2607,7 +2618,7 @@ shinyServer(function(input, output, session) {
     session$resetBrush("report_brush")
   })
   #########################################################
-  # Define element contents
+  #   Define element contents
   #########################################################
   output$out.report_element_number<-renderUI({
     validate(
