@@ -24,6 +24,8 @@ library(sf)
 library(googlesheets)
 library(googledrive)
 library(gsheet)
+library(classInt)
+#library(shinyDND)
 
 
 options(shiny.maxRequestSize=30*1024^2)
@@ -2259,13 +2261,26 @@ shinyServer(function(input, output, session) {
     validate(
       need(!is.null(all.data$data),"")
     )
-    selectInput("in.map_chart_variables",label="Chart Variables",choices=list(
-      Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
-      #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
-      #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
-      Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
-    ),multiple = FALSE)
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      )
+    }
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      )
+    }
+    
+    selectInput("in.map_chart_variables",label="Chart Variables",choices=avail.params,multiple = FALSE)
+    
   })
   
   output$out.map_time_variables<-renderUI({
@@ -2392,7 +2407,167 @@ shinyServer(function(input, output, session) {
   output$testout2<-renderDataTable({
     DT::datatable(all.data$data[,], options=list(pageLength = 10,scrollX=T))
   })
+  #########################################################
+  #Reports
+  #########################################################
+  #########################################################
+  # Define element areas
+  #########################################################
   
+  #report_layout_table<-reactiveValues(data=NULL, orientation=NULL, height=NULL,width=NULL,row.height=NULL,col.width=NULL)
+  report_layout_table<-reactiveValues(null.data=NULL
+                                      ,orientation=NULL
+                                      ,cell.widths=NULL
+                                      ,cell.heights=NULL
+                                      ,user.groups=NULL
+                                      ,px.height=NULL
+                                      ,px.width=NULL
+                                      ,element.numbers=NULL
+                                      )
+  report_grid_thresholds<-reactiveValues(breaks=seq(-0.04,1.04,length.out=12))
+  
+  observeEvent(input$report_orientation,{
+    report_layout_table$orientation<-input$report_orientation
+    if (report_layout_table$orientation=="Portrait"){
+      report_layout_table$null.data<-matrix(1:144,nrow=12,byrow=T)
+      report_layout_table$cell.widths<-21.59/ncol(report_layout_table$null.data)*0.75
+      report_layout_table$cell.heights<-27.94/nrow(report_layout_table$null.data)*0.75
+      report_layout_table$px.height<-610
+      report_layout_table$px.width<-470
+    }
+    if (report_layout_table$orientation=="Landscape"){
+      report_layout_table$null.data<-matrix(1:144,nrow=12,byrow=T)
+      report_layout_table$cell.widths<-27.94/ncol(report_layout_table$null.data)*0.75
+      report_layout_table$cell.heights<-21.59/nrow(report_layout_table$null.data)*0.75
+      report_layout_table$px.height<-470
+      report_layout_table$px.width<-610
+    }
+  })
+  output$report_test<-renderUI({
+    validate(need(!is.null(report_layout_table$orientation),"Select Orientation"))
+    plotOutput("report_layout",brush = "report_brush",hover = "plot_hover",height=report_layout_table$px.height,width=report_layout_table$px.width)
+  })
+  
+  output$report_layout<-renderPlot({
+    validate(need(!is.null(report_layout_table$orientation),"Select Orientation"))
+    par(mar=c(0,0,0,0))
+    plot.layout<-layout(report_layout_table$null.data
+                        ,widths=rep(lcm(report_layout_table$cell.widths),ncol(report_layout_table$null.data))
+                        ,heights=rep(lcm(report_layout_table$cell.heights),nrow(report_layout_table$null.data))
+                        ,respect=T)
+    layout.show(plot.layout)
+  })
+
+  observeEvent(input$apply_report_item,{
+    
+    
+    breaks<-classInt::classIntervals(seq(0.06,0.93,length.out=1000),n=10,style="equal")$brks
+    x<-which(c(breaks>input$report_brush$xmin,T) & c(T,breaks<input$report_brush$xmax))
+    y<-which(c(breaks>input$report_brush$ymin,T) & c(T,breaks<input$report_brush$ymax))
+    y<-13-c(y)
+    
+    if (length(x)==1 & length(y)==1){
+      showModal(modalDialog(title="Error",
+                            helpText("Minimum report element size must be bigger than 1/144 the size of the page (i.e. 1 cell)"),
+                            easyClose = T,
+                            size="s"
+      ))
+      session$resetBrush("report_brush")
+      validate(need(F,""))
+    }
+    
+    previous.elements<-unique(as.vector(report_layout_table$null.data)[which(duplicated(as.vector(report_layout_table$null.data)))])
+    previous.elements<-previous.elements[order(previous.elements,decreasing=T)]
+    
+    focus.obj.num<-max(report_layout_table$null.data)+1
+    report_layout_table$null.data[y,x]<-focus.obj.num
+    mat.red<-max(report_layout_table$null.data)-(length(x)*length(y))
+    
+    if (any(previous.elements%in%as.vector(report_layout_table$null.data[y,x]))){
+      showModal(modalDialog(title="Error",
+                            helpText("Cannot overlap report elements"),
+                            easyClose = T,
+                            size="s"
+      ))
+      session$resetBrush("report_brush")
+      validate(need(F,"Cannot overlap report elements"))
+    }
+    
+    number<-1
+    for(i in 1:12){
+      for (n in 1:12){
+        val<-report_layout_table$null.data[i,n]
+        if(val%in%previous.elements) {
+          report_layout_table$null.data[i,n]<-mat.red-which(val==previous.elements)
+        } else if(val==focus.obj.num) {
+          report_layout_table$null.data[i,n]<-mat.red
+        } else {
+          report_layout_table$null.data[i,n]<-c(1:mat.red)[number]
+          number<-number+1
+        }
+      }
+    }
+    
+    report_layout_table$element.numbers<-unique(as.vector(report_layout_table$null.data)[which(duplicated(as.vector(report_layout_table$null.data)))])
+    report_layout_table$element.numbers<-report_layout_table$element.numbers[order(report_layout_table$element.numbers,decreasing=F)]
+    
+    if(!is.null(report_layout_table$element.numbers) & length(report_layout_table$element.numbers)>0){
+      output$populate_report_element<-reactive({TRUE})
+      outputOptions(output, "populate_report_element", suspendWhenHidden = FALSE)
+    }
+    
+    session$resetBrush("report_brush")
+  })
+  #########################################################
+  # Define element contents
+  #########################################################
+  output$out.report_element_number<-renderUI({
+    validate(
+      need(!is.null(report_layout_table$element.numbers),"")
+    )
+    selectInput("in.Report_element_number",label="Report Element Type",
+                choices=report_layout_table$element.numbers,
+                multiple = FALSE)
+  })
+  
+  output$out.report_element_type<-renderUI({
+    avail.params<-c("None","Text","Table","Figure")
+    if (any(colnames(all.data$data)=="EPSG")){
+      avail.params<-c(avail.params,"Map")
+    }
+    selectInput("in.Report_element_type",label="Report Element Type",
+                choices=avail.params,
+                multiple = FALSE)
+  })
+  
+  output$out.report_element_content<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      )
+    }
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      )
+    }
+    
+  })
+  
+  #output$plot_hoverinfo <- renderPrint({
+  #  cat("input$plot_hover:\n")
+  #  str(input$plot_hover)
+  #})
   #########################################################
   #Help Texts - raw data input
   #########################################################

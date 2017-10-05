@@ -73,20 +73,24 @@ sidebar <- shinydashboard::dashboardSidebar(
                                                          uiOutput("out.map_time_variables")
                                         )
                                ),
-                               menuItem("Data Exploration",tabname="DataExploration",icon=icon("tint", lib = "glyphicon"),
+                               menuItem("Data Summaries",tabname="DataExploration",icon=icon("eye", lib = "font-awesome"),
                                         menuSubItem("In Development",tabName = "explorationSetup",icon=NULL)
                                ),
                                menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
-                                        menuSubItem("Single",tabName="RCA_sub",icon=NULL),
+                                        menuSubItem("Single Site",tabName="RCA_sub",icon=NULL),
                                         conditionalPanel("input.sidebarmenu === 'RCA_sub'",
                                                          uiOutput("out_test.site.select")
                                         ),
-                                        menuSubItem("Batch",tabName="RCA_sub_batch",icon=NULL)
+                                        menuSubItem("Multiple Sites",tabName="RCA_sub_batch",icon=NULL)
                                         
                                ),
                                menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
                                         menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
+                               ),
+                               menuItem("Generate Reports",tabname="Reports",icon=icon('file-text'),
+                                        menuSubItem("In Development",tabName = "ReportsSetup",icon=NULL)
                                )
+                               
                    )
   )
 )
@@ -599,6 +603,29 @@ body <- shinydashboard::dashboardBody(
                                                )
                                              )
                                     )
+                             )
+                           )
+          ),
+          
+          ##################################################
+          #Generate Reports
+          ##################################################
+          conditionalPanel("input.sidebarmenu === 'ReportsSetup'",
+                           fluidRow(
+                             h3("Generate Summary Reports")
+                           ),
+                           fluidRow(
+                             box(title="Options",width=5,
+                                 radioButtons("report_orientation","Page Orientation", choices=list(Portrait="Portrait",Landscape="Landscape"),inline=T,width=600),
+                                 uiOutput("report_test"),
+                                 actionButton("apply_report_item","Apply")
+                                 #verbatimTextOutput("plot_hoverinfo")
+                             ),
+                             conditionalPanel(condition="output.populate_report_element",
+                                              box(title="Report Element", width=4,
+                                                  uiOutput("out.report_element_number"),
+                                                  uiOutput("out.report_element_type")
+                                              )
                              )
                            )
           )
