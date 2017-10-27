@@ -1156,7 +1156,7 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  output$nn.ord <- reactivePlot(function() {
+  output$nn.ord <- renderPlot({
     print(nn.ord.raw())
   })
   
@@ -2046,7 +2046,7 @@ shinyServer(function(input, output, session) {
     
   })
   
-  output$tsa.distance.plot <- reactivePlot(function() {
+  output$tsa.distance.plot <- renderPlot( {
     print(tsa.distance.plot.raw())
   })
   
@@ -2077,8 +2077,11 @@ shinyServer(function(input, output, session) {
     tsa.lambda<-as.numeric(tsa.object$tsa.results["TSA Lambda",])
     test.site<-tsa.object$general.results["Test Site",]
     
+    
     d1<-density(tsa.dist[1:(length(tsa.dist)-1)])
     d2<-density(((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
+    
+    p1<-recordPlot()
     
     plot(d1,main=paste0(test.site),yaxt="n",xlab="Mahalanobis Distance",ylab="",xlim=c(-1,(max(tsa.dist)+3)))
     polygon(d1,col="grey80")
@@ -2093,9 +2096,10 @@ shinyServer(function(input, output, session) {
     
     text(tsa.dist[length(tsa.dist)],0, labels="test-site",pos=3, offset=0.5,cex=1,col='black')
     
+    replayPlot(p1)
   })
  
-  output$tsa.metric.plot <- reactivePlot(function() {
+  output$tsa.metric.plot <- renderPlot( {
     print(tsa.metric.plot.raw())
   })
   
@@ -2167,7 +2171,7 @@ shinyServer(function(input, output, session) {
     p1
   })
   
-  output$tsa.circle.plot <- reactivePlot(function() {
+  output$tsa.circle.plot <- renderPlot({
     print(tsa.circle.plot.raw())
   })
   
@@ -2252,7 +2256,7 @@ shinyServer(function(input, output, session) {
       }
       plot.data<-plot.data[,!is.na(plot.data[3,])]
       validate(need(ncol(plot.data)>2,"Insufficient Metrics selected"))
-      fmsb::radarchart(plot.data, axistype=1 , 
+      p1<-fmsb::radarchart(plot.data, axistype=1 , 
                   
                   #custom polygon
                   pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
@@ -2263,11 +2267,11 @@ shinyServer(function(input, output, session) {
                   #custom labels
                   vlcex=0.8 
       )
-      
+      p1
     }
   })
   
-  output$tsa.pcoa.plot <- reactivePlot(function() {
+  output$tsa.pcoa.plot <- renderPlot( {
     print(tsa.pcoa.plot.raw())
   })
   
