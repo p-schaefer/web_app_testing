@@ -81,6 +81,10 @@ shinyServer(function(input, output, session) {
       removeModal()
       output$loggedin1<-reactive({TRUE})
       outputOptions(output, "loggedin1", suspendWhenHidden = FALSE)
+      if (input$username=="ecopulseanalytics@gmail.com") {
+        output$adminloggedin<-reactive({TRUE})
+        outputOptions(output, "adminloggedin", suspendWhenHidden = FALSE)
+      }
       loggedin<-TRUE
       loggedin1$data<-TRUE
     } else {
@@ -1151,7 +1155,23 @@ shinyServer(function(input, output, session) {
       nn.ord.ranges$y <- NULL
     }
   })
-  output$nn.ord<-renderPlot({
+  
+  output$nn.ord <- reactivePlot(function() {
+    print(nn.ord.raw())
+  })
+  
+  output$nn.ord.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("NNOrd.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(nn.ord.raw())
+      dev.off()
+      }
+  )
+  
+  nn.ord.raw<-reactive({
     validate(need(input$nn_method!="User Selected",""))
     validate(need(!is.null(habitat.by.site$data) & !is.null(reftest.ID.cols$data),"Missing Habitat data or Reference Sites"))
     
@@ -2026,7 +2046,22 @@ shinyServer(function(input, output, session) {
     
   })
   
-  output$tsa.distance.plot<-renderPlot({
+  output$tsa.distance.plot <- reactivePlot(function() {
+    print(tsa.distance.plot.raw())
+  })
+  
+  output$tsa.distance.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("TSAdistance.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(tsa.distance.plot.raw())
+      dev.off()
+    }
+  )
+  
+  tsa.distance.plot.raw<-reactive({
     validate(need(input$in_test_site_select!="None",""))
     validate(need(!is.null(input$in_metric.select),""))
     validate(need(class(tsa.results$data)!="try-error", ""))
@@ -2059,8 +2094,23 @@ shinyServer(function(input, output, session) {
     text(tsa.dist[length(tsa.dist)],0, labels="test-site",pos=3, offset=0.5,cex=1,col='black')
     
   })
+ 
+  output$tsa.metric.plot <- reactivePlot(function() {
+    print(tsa.metric.plot.raw())
+  })
   
-  output$tsa.metric.plot<-renderPlot({
+  output$tsa.metric.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("TSAmetrics.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(tsa.metric.plot.raw())
+      dev.off()
+    }
+  )
+  
+  tsa.metric.plot.raw<-reactive({
     validate(need(input$in_test_site_select!="None",""))
     validate(need(!is.null(input$in_metric.select),""))
     validate(need(class(tsa.results$data)!="try-error", ""))
@@ -2117,7 +2167,22 @@ shinyServer(function(input, output, session) {
     p1
   })
   
-  output$tsa.circle.plot<-renderPlot({
+  output$tsa.circle.plot <- reactivePlot(function() {
+    print(tsa.circle.plot.raw())
+  })
+  
+  output$tsa.circle.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("TSAcircleplot.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(tsa.circle.plot.raw())
+      dev.off()
+    }
+  )
+  
+  tsa.circle.plot.raw<-reactive({
     validate(need(!is.null(tsa.results$data),""))
     validate(need(!input$metdata,""))
     validate(need(class(tsa.results$data)!="try-error", ""))
@@ -2202,7 +2267,22 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  output$tsa.pcoa.plot<-renderPlot({
+  output$tsa.pcoa.plot <- reactivePlot(function() {
+    print(tsa.pcoa.plot.raw())
+  })
+  
+  output$tsa.pcoa.download<-downloadHandler(
+    filename = function() {
+      paste0("TSAPCOAplot.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(tsa.pcoa.plot.raw())
+      dev.off()
+    }
+  )
+  
+  tsa.pcoa.plot.raw<-reactive({
     validate(need(!is.null(tsa.results$data),""))
     validate(need(class(tsa.results$data)!="try-error", ""))
     
@@ -2233,7 +2313,22 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  output$tsa.ca.plot<-renderPlot({
+  output$tsa.ca.plot <- reactivePlot(function() {
+    print(tsa.ca.plot.raw())
+  })
+  
+  output$tsa.ca.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("TSACAplot.png", sep="")
+    },
+    content = function(file) {
+      png(file, type='cairo')
+      print(tsa.ca.plot.raw())
+      dev.off()
+    }
+  )
+  
+  tsa.ca.plot.raw<-reactive({
     validate(need(!is.null(tsa.results$data),""))
     validate(need(class(tsa.results$data)!="try-error", ""))
     

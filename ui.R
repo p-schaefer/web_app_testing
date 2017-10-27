@@ -409,6 +409,7 @@ body <- shinydashboard::dashboardBody(
                                                                                              id = "nn.ord_brush",
                                                                                              resetOnNew = TRUE
                                                                                            )),
+                                                                                downloadButton("nn.ord.plot.download","Download plot"),
                                                                                 helpText("Drag a box and double-click to zoom to that area. Double-click again to zoom out"),
                                                                                 actionLink("NN_results_modal","Nearest-Neighbour Model Results") #Need to add this
                                                                          ),
@@ -498,15 +499,15 @@ body <- shinydashboard::dashboardBody(
                                                  ),
                                                  column(width=4,
                                                         tabsetPanel(
-                                                          tabPanel(title=("Circle Plot"),plotOutput("tsa.circle.plot") ),
-                                                          tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot") ),
-                                                          tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot") ),
-                                                          tabPanel(title=("NMDS"),plotOutput("tsa.pcoa.plot") )
+                                                          tabPanel(title=("Circle Plot"),plotOutput("tsa.circle.plot"),downloadButton("tsa.circle.plot.download","Download plot")),
+                                                          tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot"),downloadButton("tsa.distance.plot.download","Download plot") ),
+                                                          tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot"),downloadButton("tsa.ca.plot.download","Download plot") ),
+                                                          tabPanel(title=("NMDS"),plotOutput("tsa.pcoa.plot"),downloadButton("tsa.pcoa.download","Download plot") )
                                                         )
                                                  )
                                                ),
                                                fluidRow(
-                                                 column(width=10,plotOutput("tsa.metric.plot"))
+                                                 column(width=10,plotOutput("tsa.metric.plot"),downloadButton("tsa.metric.plot.download","Download plot"))
                                                )
                                              )
                                     )
@@ -611,23 +612,25 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           #Generate Reports
           ##################################################
-          conditionalPanel("input.sidebarmenu === 'ReportsSetup'",
-                           fluidRow(
-                             h3("Generate Summary Reports")
-                           ),
-                           fluidRow(
-                             box(title="Options",width=5,
-                                 radioButtons("report_orientation","Page Orientation", choices=list(Portrait="Portrait",Landscape="Landscape"),inline=T,width=600),
-                                 uiOutput("report_test"),
-                                 actionButton("apply_report_item","Apply")
-                                 #verbatimTextOutput("plot_hoverinfo")
-                             ),
-                             conditionalPanel(condition="output.populate_report_element",
-                                              box(title="Report Element", width=4,
-                                                  uiOutput("out.report_element_number"),
-                                                  uiOutput("out.report_element_type")
+          conditionalPanel("output.adminloggedin", 
+                           conditionalPanel("input.sidebarmenu === 'ReportsSetup'",
+                                            fluidRow(
+                                              h3("Generate Summary Reports")
+                                            ),
+                                            fluidRow(
+                                              box(title="",width=6,
+                                                  radioButtons("report_orientation","Page Orientation", choices=list(Portrait="Portrait",Landscape="Landscape"),inline=T,width=600),
+                                                  uiOutput("report_test"),
+                                                  actionButton("apply_report_item","Apply")
+                                                  #verbatimTextOutput("plot_hoverinfo")
+                                              ),
+                                              conditionalPanel(condition="output.populate_report_element",
+                                                               box(title="Report Element", width=6,
+                                                                   uiOutput("out.report_element_number"),
+                                                                   uiOutput("out.report_element_type")
+                                                               )
                                               )
-                             )
+                                            )
                            )
           )
           
