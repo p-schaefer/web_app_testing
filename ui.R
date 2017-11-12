@@ -70,7 +70,7 @@ sidebar <- shinydashboard::dashboardSidebar(
                                                                           )
                                                          ),
                                                          uiOutput("out.map_chart_variables"),
-                                                         checkboxInput("map_legend", "Show Legend?", value=T),
+                                                         checkboxInput("map_legend", "Show Legend", value=F),
                                                          uiOutput("out.map_time_variables")
                                         )
                                ),
@@ -204,18 +204,18 @@ body <- shinydashboard::dashboardBody(
                                                                                                    br(),
                                                                                                    actionButton("raw.taxa.cols", "Taxa or Metrics"),
                                                                                                    br(),
-                                                                                                   actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)"),
+                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances")),
                                                                                                    br(),
-                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols", "Abundances"))
+                                                                                                   actionButton("raw.habitat.cols", "Habitat Descriptors (Optional)")
                                                                                             ),
                                                                                             column(width=4,
                                                                                                    actionButton("raw.siteID.cols.rem", "Undo"),
                                                                                                    br(),
                                                                                                    actionButton("raw.taxa.cols.rem", "Undo"),
                                                                                                    br(),
-                                                                                                   actionButton("raw.habitat.cols.rem", "Undo"),
+                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo")),
                                                                                                    br(),
-                                                                                                   conditionalPanel("input.rawFormat == 'Long'",actionButton("raw.abund.cols.rem", "Undo"))
+                                                                                                   actionButton("raw.habitat.cols.rem", "Undo")
                                                                                             )
                                                                                         )
                                                                        ),
@@ -502,7 +502,7 @@ body <- shinydashboard::dashboardBody(
                                                           tabPanel(title=("Circle Plot"),plotOutput("tsa.circle.plot"),downloadButton("tsa.circle.plot.download","Download plot")),
                                                           tabPanel(title=("TSA Distance"),plotOutput("tsa.distance.plot"),downloadButton("tsa.distance.plot.download","Download plot") ),
                                                           tabPanel(title=("Correspondence Analysis"),plotOutput("tsa.ca.plot"),downloadButton("tsa.ca.plot.download","Download plot") ),
-                                                          tabPanel(title=("NMDS"),plotOutput("tsa.pcoa.plot"),downloadButton("tsa.pcoa.download","Download plot") )
+                                                          tabPanel(title=("PCoA"),plotOutput("tsa.pcoa.plot"),downloadButton("tsa.pcoa.download","Download plot") )
                                                         )
                                                  )
                                                ),

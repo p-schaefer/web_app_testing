@@ -486,7 +486,7 @@ shinyServer(function(input, output, session) {
         colnames(orig.ID)<-site.ID.cols$data
         orig.ID[,input$time.ID]<-as.numeric(as.character(orig.ID[,input$time.ID]))
         
-        non.time.ID<-as.factor(orig.ID[,!colnames(orig.ID)%in%input$time.ID])
+        non.time.ID<-colwise(as.factor)(as.data.frame(orig.ID[,!colnames(orig.ID)%in%input$time.ID]))
         if (length(which(!colnames(orig.ID)%in%input$time.ID))>1){
           non.time.ID<-apply(non.time.ID,1,paste0,collapse="",sep=";")
           non.time.ID<-as.factor(substr(non.time.ID,start=1,stop=(nchar(non.time.ID)-1)))
@@ -1162,10 +1162,10 @@ shinyServer(function(input, output, session) {
   
   output$nn.ord.plot.download<-downloadHandler(
     filename = function() {
-      paste0("NNOrd.png", sep="")
+      paste0("NNOrd.pdf", sep="")
     },
     content = function(file) {
-      png(file, type='cairo')
+      pdf(file, height=4,width=5.33334)
       print(nn.ord.raw())
       dev.off()
       }
@@ -2052,11 +2052,34 @@ shinyServer(function(input, output, session) {
   
   output$tsa.distance.plot.download<-downloadHandler(
     filename = function() {
-      paste0("TSAdistance.png", sep="")
+      paste0("TSAdistance.pdf", sep="")
     },
     content = function(file) {
-      png(file, type='cairo')
-      print(tsa.distance.plot.raw())
+      pdf(file, height=4,width=5.33334)
+      tsa.object<-tsa.results$output.list
+      
+      tsa.dist<-tsa.object$mahalanobis.distance
+      nInd<-as.numeric(tsa.object$general.results["Number of Metrics",])
+      nRef<-as.numeric(tsa.object$general.results["Number of Reference Sites",])
+      tsa.lambda<-as.numeric(tsa.object$tsa.results["TSA Lambda",])
+      test.site<-tsa.object$general.results["Test Site",]
+      
+      
+      d1<-density(tsa.dist[1:(length(tsa.dist)-1)])
+      d2<-density(((nInd*(nRef-1))*rf(1000000, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda))/((nRef-nInd)*nRef))
+      
+      plot(d1,main=paste0(test.site),yaxt="n",xlab="Mahalanobis Distance",ylab="",xlim=c(-1,(max(tsa.dist)+3)))
+      polygon(d1,col="grey80")
+      lines(d2,lty=2,cex=2,col="grey70")
+      abline(v=((nInd*(nRef-1))*qf(0.95, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda, log=FALSE)/((nRef-nInd)*nRef)), lty=2, col='red')
+      abline(v=((nInd*(nRef-1))*qf(0.05, df1=nInd, df2=(nRef-nInd), ncp=tsa.lambda, log=FALSE)/((nRef-nInd)*nRef)), lty=2, col='orange')
+      points(tsa.dist[length(tsa.dist)],0, pch="*",col='black',cex=2,lwd=2)
+      if (any(names(tsa.object)=="jacknife")) {
+        segments(x0=tsa.object$jacknife[2,],y0=0.05,x1=tsa.object$jacknife[3,],y1=0.05,col="black",lwd=2)
+        text(tsa.object$jacknife[2,],0.05,labels=paste0("Jacknife Consistency ",substr(tsa.object$jacknife[1,],1,3),"%"),pos=3, offset=0.5,cex=0.70,col='black')
+      }
+      
+      text(tsa.dist[length(tsa.dist)],0, labels="test-site",pos=3, offset=0.5,cex=1,col='black')
       dev.off()
     }
   )
@@ -2105,10 +2128,10 @@ shinyServer(function(input, output, session) {
   
   output$tsa.metric.plot.download<-downloadHandler(
     filename = function() {
-      paste0("TSAmetrics.png", sep="")
+      paste0("TSAmetrics.pdf", sep="")
     },
     content = function(file) {
-      png(file, type='cairo')
+      pdf(file, height=4,width=10)
       print(tsa.metric.plot.raw())
       dev.off()
     }
@@ -2177,11 +2200,84 @@ shinyServer(function(input, output, session) {
   
   output$tsa.circle.plot.download<-downloadHandler(
     filename = function() {
-      paste0("TSAcircleplot.png", sep="")
+      paste0("TSAcircleplot.pdf", sep="")
     },
     content = function(file) {
-      png(file, type='cairo')
-      print(tsa.circle.plot.raw())
+      pdf(file, height=4,width=5.33334)
+      tsa.object<-tsa.results$output.list
+      
+      z.scores<-data.frame(tsa.object$z.scores)
+      z.scores$ref<-1
+      z.scores$ref[nrow(z.scores)]<-0
+      z.scores$ref<-as.factor(z.scores$ref)
+      z.scores$names<-rownames(z.scores)
+      
+      nRef<-length(which(z.scores$ref==1))
+      
+      Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
+      Biodiversity<-c("Richness","Simpson")
+      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Hydrology<-c("CEFI")
+      Habitat.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
+                        "Sprawler.Richness")
+      Feeding.Guilds<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                        "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
+                        "Gatherer.Richness")
+      
+      #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
+      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
+      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
+      rownames(plot.data)[3]<-input$in_test_site_select
+      
+      for (i in as.character(colnames(plot.data))) {
+        try1<-try(eval(parse(text=paste0("data1<-z.scores[,colnames(z.scores)%in%",i, "]"))),silent=T)
+        if(class(try1)=="try-error"){
+          next()
+        }
+        eval(parse(text=paste0("data1<-z.scores[,colnames(z.scores)%in%",i, "]")))
+        if (is.data.frame(data1)){
+          are.nas<-unlist(apply(data1,2, function(x) !any(is.na(x)))) & unlist(apply(data1,2, function(x) IQR(x)>0))
+          if (sum(are.nas)==0) {
+            next()
+          }
+          if(sum(are.nas)==1){
+            data1<-data1[,are.nas]
+            tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+            tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
+          } else {
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+            tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
+            tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
+            plot.data[3,i]<-tsa.NCPinterval
+          }
+        } else {
+          are.nas<-!any(is.na(data1))
+          if (sum(are.nas)==0) {
+            next()
+          }
+          tsa.dist<-abs(data1[length(data1)]-mean(data1[1:(length(data1)-1)]))*sqrt(nRef)
+          tsa.lambda<-qchisq(0.05,1, ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
+          tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
+          plot.data[3,i]<-tsa.NCPinterval
+        }
+      }
+      plot.data<-plot.data[,!is.na(plot.data[3,])]
+      validate(need(ncol(plot.data)>2,"Insufficient Metrics selected"))
+      p1<-fmsb::radarchart(plot.data, axistype=1 , 
+                           
+                           #custom polygon
+                           pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
+                           
+                           #custom the grid
+                           cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,100,length.out=5), cglwd=0.8,
+                           
+                           #custom labels
+                           vlcex=0.8 
+      )
+      p1
       dev.off()
     }
   )
@@ -2277,11 +2373,30 @@ shinyServer(function(input, output, session) {
   
   output$tsa.pcoa.download<-downloadHandler(
     filename = function() {
-      paste0("TSAPCOAplot.png", sep="")
+      paste0("TSAPCOAplot.pdf", sep="")
     },
     content = function(file) {
-      png(file, type='cairo')
-      print(tsa.pcoa.plot.raw())
+      pdf(file, height=4,width=5.33334)
+      tsa.object<-tsa.results$output.list
+      
+      vectors=T
+      mets<-tsa.object$z.scores[,colnames(tsa.object$raw.data)]
+      nInd<-ncol(mets)
+      nRef<-nrow(mets)-1
+      refsites<-c(rep(1,nRef),0)
+      
+      plot1<-vegan::capscale(BenthicAnalysistesting::D2.dist(mets,(cov(mets[1:nRef,])),inverted=F)~1,add=F,sqrt.dist=F)
+      fig<-vegan::ordiplot(plot1,type="n",main=paste(rownames(mets[max(nrow(mets)),])," PCoA Plot",sep=""),
+                           xlab=paste("MDS ",substr((eigenvals(plot1)[1]/sum(eigenvals(plot1)))*100,1,4),"%"),
+                           ylab=paste("MDS ",substr((eigenvals(plot1)[2]/sum(eigenvals(plot1)))*100,1,4),"%"))
+      points(fig,what="sites",cex=0.8,select=refsites==1,col="black",pch=19)
+      points(fig,what="sites",cex=0.8,select=refsites==0,col="red",pch=19)
+      suppressWarnings(vegan::ordiellipse(plot1,refsites,kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      text(fig,what="sites",select=refsites==1,col="black",cex=0.8,pos=3)
+      text(fig,what="sites",select=refsites==0,col="red",cex=0.9,pos=3)
+      if (vectors==T) {
+        plot(vegan::envfit(plot1,mets,display="sites",na.rm=F,permutations=0),cex=0.8,col="orange")
+      }
       dev.off()
     }
   )
@@ -2317,22 +2432,7 @@ shinyServer(function(input, output, session) {
     }
   })
   
-  output$tsa.ca.plot <- reactivePlot(function() {
-    print(tsa.ca.plot.raw())
-  })
-  
-  output$tsa.ca.plot.download<-downloadHandler(
-    filename = function() {
-      paste0("TSACAplot.png", sep="")
-    },
-    content = function(file) {
-      png(file, type='cairo')
-      print(tsa.ca.plot.raw())
-      dev.off()
-    }
-  )
-  
-  tsa.ca.plot.raw<-reactive({
+  output$tsa.ca.plot <- renderPlot({
     validate(need(!is.null(tsa.results$data),""))
     validate(need(class(tsa.results$data)!="try-error", ""))
     
@@ -2347,7 +2447,7 @@ shinyServer(function(input, output, session) {
       raw.data<-rbind(Reference,Test)
       pRef<-colSums(decostand(Reference,"pa"))/nrow(Reference)
       
-      ca.ord<-vegan::cca(log(raw.data[,names(which(pRef>=0.1))]+1))
+      ca.ord<-vegan::cca(log(raw.data[,names(which(pRef>=0.05))]+1))
       ca1<-ca.ord$CA$u[,1]
       ca2<-ca.ord$CA$u[,2]
       
@@ -2360,9 +2460,44 @@ shinyServer(function(input, output, session) {
       text(x=ca1[1:nRef],y=ca2[1:nRef],labels=names(ca1)[1:nRef],col="black",cex=0.8,pos=3)
       text(x=ca1[(nRef+1)],y=ca2[(nRef+1)],labels=names(ca1)[(nRef+1)],col="red",cex=0.9,pos=3)
       suppressWarnings(vegan::ordiellipse(ca.ord,c(rep(1,nrow(Reference)),0),kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
-      }
+
+    }
   })
   
+  output$tsa.ca.plot.download<-downloadHandler(
+    filename = function() {
+      paste0("TSACAplot.pdf", sep="")
+    },
+    content = function(file) {
+      pdf(file, height=4,width=5.33334)
+      temp<-all.data$data
+      colnames(temp)<-gsub(".",";",colnames(temp),fixed = T)
+      
+      Test<-temp[input$in_test_site_select,colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      ref.set<-nn.sites$data$TF.matrix[rownames(Test),]
+      Reference<-temp[names(ref.set)[ref.set==T],colnames(temp)%in%colnames(bio.data$data$Raw.Data)]
+      nRef<-nrow(Reference)
+      raw.data<-rbind(Reference,Test)
+      pRef<-colSums(decostand(Reference,"pa"))/nrow(Reference)
+      
+      ca.ord<-vegan::cca(log(raw.data[,names(which(pRef>=0.05))]+1))
+      ca1<-ca.ord$CA$u[,1]
+      ca2<-ca.ord$CA$u[,2]
+      
+      plot(ca.ord,type="n",main=paste(rownames(ca1)[(nRef+1)]," CA Plot",sep=""),
+           xlab=paste("CA1 ",substr((eigenvals(ca.ord)[1]/sum(eigenvals(ca.ord)))*100,1,4),"%"),
+           ylab=paste("CA2 ",substr((eigenvals(ca.ord)[2]/sum(eigenvals(ca.ord)))*100,1,4),"%"))
+      text(x=ca.ord$CA$v[,1],y=ca.ord$CA$v[,2],labels=rownames(ca.ord$CA$v),col="grey50",cex=0.7)
+      points(x=ca1[1:nRef],y=ca2[1:nRef],cex=0.8,col="black",pch=19)
+      points(x=ca1[(nRef+1)],y=ca2[(nRef+1)],cex=0.8,col="red",pch=19)
+      text(x=ca1[1:nRef],y=ca2[1:nRef],labels=names(ca1)[1:nRef],col="black",cex=0.8,pos=3)
+      text(x=ca1[(nRef+1)],y=ca2[(nRef+1)],labels=names(ca1)[(nRef+1)],col="red",cex=0.9,pos=3)
+      suppressWarnings(vegan::ordiellipse(ca.ord,c(rep(1,nrow(Reference)),0),kind="sd",conf=0.95,draw="line",col="grey20",lty=5,show.groups=1))
+      dev.off()
+    }
+  )
+  
+
   
   
   #########################################################
@@ -2488,9 +2623,14 @@ shinyServer(function(input, output, session) {
     validate(
       need(!is.null(coordinates.by.site$data.unique),"")
     )
+    #validate(
+    #  need(input$time.ID!=""&&!is.null(input$in.map_time_variables),"")
+    #)
+    
     validate(
-      need(!is.null(input$in.map_time_variables),"")
+      need(!is.null(map.data$map.mod),"Generating Map...")
     )
+    
     Map<-map.data$map.mod
     
     #mapviewOptions(legend = input$map_legend, legend.pos="topright")
