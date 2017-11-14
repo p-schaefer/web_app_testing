@@ -1571,7 +1571,8 @@ shinyServer(function(input, output, session) {
           all.data$data<-data.frame(cbind(all.data$data,temp))
         }
         ref.set<-nn.sites$data$TF.matrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
-        ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
+        ref.set2<-apply(as.matrix(ref.set),1, function(m) list(colnames(ref.set)[m]))
+        ref.set2<-unlist(ref.set2,recursive = F)
       }
       if (input$nn_method_b=="User Selected"){
         ref.set<-userMatchRefSites$TFmatrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
