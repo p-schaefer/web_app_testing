@@ -199,6 +199,7 @@ shinyServer(function(input, output, session) {
       need(input$rawFormat!=0,"")
     )
     data<-raw.bio.data$data
+
     output<-as.vector(sapply(data[1:max(raw.data.rows(),1),],paste0,collapse="",sep=";"))
     output<-substr(output,start=1,stop=(nchar(output)-1))
     while(any(substr(output,1,1)==";")){
@@ -419,55 +420,110 @@ shinyServer(function(input, output, session) {
   #    When Raw Data are finalized
   #########################################################
   
+  passed.validation<-reactiveValues(pass=NULL)
   taxa.by.site<-reactiveValues(data=NULL,data.alt.colnames=NULL) #calculate taxa by site table
   observeEvent(input$finalize_raw,{
-    if (T){
-      isolate(
-        if (input$rawFormat=="Wide"){
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
-          }
+    isolate(
+      if (input$rawFormat=="Wide"){
+        if (length(site.ID.cols$data)==1){
+          site.names<-as.vector(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data])
+        } else {
+          site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+          site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        }
+        if(any(duplicated(site.names))){
+          passed.validation$pass<-FALSE
+          showModal(modalDialog(
+            title = "Error",
+            "Duplicate sampling events are not permitted",
+            easyClose = T
+          ))
+        } else {
           output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%taxa.ID.cols$data]
           output<-data.frame(apply(output,2,as.numeric))
           rownames(output)<-site.names
           colnames(output)<-taxa.ID.cols$data
           output<-output[site.names[!duplicated(site.names)],]
         }
-      )
-      isolate(
-        if (input$rawFormat=="Long") {
-          if (length(site.ID.cols$data)==1){
-            site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
-          } else {
-            site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
-            site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
-          }
+      }
+    )
+    isolate(
+      if (input$rawFormat=="Long") {
+        if (length(site.ID.cols$data)==1){
+          site.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data])
+        } else {
+          site.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
+          site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
+        }
+        
+        if (length(taxa.ID.cols$data)==1){
+          taxa.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%taxa.ID.cols$data])
+        } else {
+          taxa.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%taxa.ID.cols$data],1,paste0,collapse="",sep=";")
+          taxa.names<-substr(taxa.names,start=1,stop=(nchar(taxa.names)-1))
           
-          if (length(taxa.ID.cols$data)==1){
-            taxa.names<-as.vector(raw.bio.data$data[-c(1),raw.colnames()%in%taxa.ID.cols$data])
-          } else {
-            taxa.names<-apply(raw.bio.data$data[-c(1),raw.colnames()%in%taxa.ID.cols$data],1,paste0,collapse="",sep=";")
-            taxa.names<-substr(taxa.names,start=1,stop=(nchar(taxa.names)-1))
-            
-          }
-          
+        }
+        
+        if(any(duplicated(site.names))){
+          passed.validation$pass<-FALSE
+          showModal(modalDialog(
+            title = "Error",
+            "Duplicate sampling events are not permitted",
+            easyClose = T
+          ))
+        } else {
           input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data])))
           int.output<-aggregate(abund~taxa+sites, data=input,sum)
           output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
           output<-output[site.names[!duplicated(site.names)],]
         }
-      )
-      output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
-      rownames(output)<-site.names[!duplicated(site.names)]
-      colnames(output)<-gsub(".",";",colnames(output),fixed=T)
-      taxa.by.site$data<-output
-      
-      taxa.by.site$data.alt.colnames<-output
-      colnames(taxa.by.site$data.alt.colnames)<-gsub(";",".",colnames(output),fixed=T)
-    }
+      }
+    )
+    
+    flag1<-any(grepl(" ",colnames(output),fixed = T))
+    flag2<-any(grepl(".",colnames(output),fixed = T))
+    flag3<-any(grepl(",",colnames(output),fixed = T))
+    flag4<-any(grepl("sp.",colnames(output),fixed = T))
+    flag5<-any(grepl("gr.",colnames(output),fixed = T))
+    flag6<-any(grepl("group",colnames(output),fixed = T))
+    flag7<-any(grepl("complex",colnames(output),fixed = T))
+    flag8<-any(grepl("(",colnames(output),fixed = T))
+    flag9<-any(grepl(")",colnames(output),fixed = T))
+    flag10<-any(grepl("/",colnames(output),fixed = T))
+    flag11<-any(grepl("spp.",colnames(output),fixed = T))
+    
+    if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11)){
+      passed.validation$pass<-FALSE
+      showModal(modalDialog(
+        title = "Error",
+        "Taxa names cannot contain: spaces, punctuation, sp. spp, gr., group, complex, etc.",
+        easyClose = T
+      ))
+    } 
+    
+    flag12<-any(colSums(output)==0)
+    
+    if (any(flag12)){
+      passed.validation$pass<-FALSE
+      showModal(modalDialog(
+        title = "Error",
+        "Dataset cannot contain taxa with no occurances",
+        easyClose = T
+      ))
+    } 
+    
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
+    output<-do.call(data.frame,lapply(output, function(x) type.convert(as.character(x))))
+    rownames(output)<-site.names[!duplicated(site.names)]
+    colnames(output)<-gsub(".",";",colnames(output),fixed=T)
+    taxa.by.site$data<-output
+    
+    taxa.by.site$data.alt.colnames<-output
+    colnames(taxa.by.site$data.alt.colnames)<-gsub(";",".",colnames(output),fixed=T)
+    
   })
   output$view.taxa<-renderDataTable({#Renders raw data table
     DT::datatable(taxa.by.site$data,
@@ -476,6 +532,9 @@ shinyServer(function(input, output, session) {
   
   missing.sampling.events<-reactiveValues(full.data=NULL,rnames=NULL) #if a time field is specified, find missing sampling events
   observeEvent(input$finalize_raw,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
     validate(
       need(input$time.ID!="","")
     )
@@ -516,6 +575,10 @@ shinyServer(function(input, output, session) {
 
   habitat.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
   observeEvent(input$finalize_raw,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     if (!is.null(habitat.ID.cols$data)){
       isolate(
         if (input$rawFormat=="Wide"){
@@ -558,6 +621,10 @@ shinyServer(function(input, output, session) {
   
   coordinates.by.site<-reactiveValues(data.all=NULL,data.unique=NULL,gis.site.id=NULL) #coordinate by site table
   observeEvent(input$finalize_raw,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     if (!is.null(coord.ID.cols$east)&!is.null(coord.ID.cols$north)&!is.null(coord.ID.cols$espg)){
       if (coord.ID.cols$east!="None" & coord.ID.cols$north!="None" & coord.ID.cols$espg!="None"){
         isolate(
@@ -671,6 +738,10 @@ shinyServer(function(input, output, session) {
   
   reftest.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
   observeEvent(input$finalize_raw,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     if (!is.null(reftest.ID.cols$data)){
       if (reftest.ID.cols$data!="None"){
         isolate(
@@ -718,6 +789,10 @@ shinyServer(function(input, output, session) {
   habitat.data<-reactiveValues(data=NULL)
   
   observeEvent(input$finalize_raw,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     isolate(
       if(input$metdata==F){
         bio.data$data<-BenthicAnalysistesting::benth.metUI(x=taxa.by.site$data, taxa.sep = input$taxa_sep, HBI=NULL)
@@ -728,6 +803,10 @@ shinyServer(function(input, output, session) {
     )
   })
   observeEvent(input$finalize_raw, {
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     isolate(
       if (input$metdata==T){
         bio.data$data$Summary.Metrics<-taxa.by.site$data
@@ -742,6 +821,10 @@ shinyServer(function(input, output, session) {
   })
   
   observeEvent({input$finalize_raw},{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
     isolate(
       if(input$metdata==F){
         feeding.data$data<-aggregate(t(taxa.by.site$data),by=list(bio.data$data$Attributes$Feeding),FUN=sum)
@@ -1024,6 +1107,10 @@ shinyServer(function(input, output, session) {
       #input$tsa_weighted
     )
   ,{
+    validate(
+      need(passed.validation$pass,"Data must pass validation")
+    )
+    
 
     all.data$data<-taxa.by.site$data.alt.colnames
     
@@ -2574,6 +2661,10 @@ shinyServer(function(input, output, session) {
                  input$habitat_convert_numb_to_fact,
                  input$tsa_batch_go),
                {
+                 validate(
+                   need(passed.validation$pass,"Data must pass validation")
+                 )
+                 
                  validate(
                    need(!is.null(coordinates.by.site$data.unique),"")
                  )
