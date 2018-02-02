@@ -1571,7 +1571,8 @@ shinyServer(function(input, output, session) {
           all.data$data<-data.frame(cbind(all.data$data,temp))
         }
         ref.set<-nn.sites$data$TF.matrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
-        ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
+        ref.set2<-apply(as.matrix(ref.set),1, function(m) list(colnames(ref.set)[m]))
+        ref.set2<-unlist(ref.set2,recursive = F)
       }
       if (input$nn_method_b=="User Selected"){
         ref.set<-userMatchRefSites$TFmatrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
@@ -2797,8 +2798,7 @@ shinyServer(function(input, output, session) {
   })
 
   observeEvent(input$apply_report_item,{
-    
-    
+
     breaks<-classInt::classIntervals(seq(0.06,0.93,length.out=1000),n=10,style="equal")$brks
     x<-which(c(breaks>input$report_brush$xmin,T) & c(T,breaks<input$report_brush$xmax))
     y<-which(c(breaks>input$report_brush$ymin,T) & c(T,breaks<input$report_brush$ymax))
