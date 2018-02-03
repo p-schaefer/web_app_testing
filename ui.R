@@ -75,7 +75,7 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         )
                                ),
                                menuItem("Data Summaries",tabname="DataExploration",icon=icon("eye", lib = "font-awesome"),
-                                        menuSubItem("In Development",tabName = "explorationSetup",icon=NULL)
+                                        menuSubItem("Options",tabName = "explorationSetup",icon=NULL)
                                ),
                                menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
                                         menuSubItem("Single Site",tabName="RCA_sub",icon=NULL),
@@ -176,7 +176,7 @@ body <- shinydashboard::dashboardBody(
                            fluidRow(
                              tabBox("Data",width=12,
                                     tabPanel("Raw",status="warning",collapsible = T,solidHeader = T,
-                                             fluidRow(
+                                             fluidPage(
                                                DT::dataTableOutput("rawDataView"),
                                                br(),
                                                br()
@@ -390,13 +390,48 @@ body <- shinydashboard::dashboardBody(
                           # )
                            
           ),
+          ##################################################
+          # Data summaries
+          ##################################################
+          conditionalPanel("input.sidebarmenu === 'explorationSetup'",
+                           fluidRow(
+                             tabBox(width=9,
+                                    tabPanel(h4("Table"),
+                                             fluidPage(
+                                               column(width=4,
+                                                      uiOutput("datsum_tabresponse"),
+                                                      uiOutput("datsum_tabgrpfct1"),
+                                                      uiOutput("datsum_tabgrpfct2"),
+                                                      uiOutput("datsum_tabgrpfct3"),
+                                                      selectInput("datasum_fun","Function", list(General=c("Sum","Mean"),
+                                                                                                 Percentiles=c("5th","25th","50th","75th","95th")),
+                                                                  multiple=F,selected="Sum"),
+                                                      checkboxInput("datsum_tab_usetrans","Use transformed data"),
+                                                      downloadButton("download_datasum_table","Download")
+                                               ),
+                                               column(width=6,
+                                                      dataTableOutput("datsumtable"))
+                                             )
+                                    ),
+                                    tabPanel(h4("Correlations")
+                                    ),
+                                    tabPanel(h4("Scatter Plots")
+                                    ),
+                                    tabPanel(h4("Box Plots")
+                                    ),
+                                    tabPanel(h4("Pie Charts")
+                                    ),
+                                    tabPanel(h4("Exploratory models")
+                                    )
+                             )
+                           )
+          ),
           
           ##################################################
           # RCA - Single
           ##################################################
           conditionalPanel("input.sidebarmenu === 'RCA_sub'",
                            fluidRow(
-                             h3("Integrity Assessment by Reference Condition Approach"),
                              tabBox("RCA",width=12,
                                     tabPanel(h4("Nearest-Neighbour Site Matching"),
                                              fluidRow(
@@ -490,7 +525,7 @@ body <- shinydashboard::dashboardBody(
                                              )
                                     ),
                                     tabPanel(h4("Test Site Analysis"),
-                                             fluidRow(
+                                             fluidPage(
                                                fluidRow(
                                                  column(width=5,
                                                           uiOutput("tsa.result.printed"),

@@ -25,6 +25,7 @@ library(googlesheets)
 library(googledrive)
 library(gsheet)
 library(classInt)
+library(corrplot)
 #library(shinyDND)
 
 
@@ -420,7 +421,7 @@ shinyServer(function(input, output, session) {
   #    When Raw Data are finalized
   #########################################################
   
-  passed.validation<-reactiveValues(pass=NULL)
+  passed.validation<-reactiveValues(pass=TRUE)
   taxa.by.site<-reactiveValues(data=NULL,data.alt.colnames=NULL) #calculate taxa by site table
   observeEvent(input$finalize_raw,{
     isolate(
@@ -463,20 +464,10 @@ shinyServer(function(input, output, session) {
           taxa.names<-substr(taxa.names,start=1,stop=(nchar(taxa.names)-1))
           
         }
-        
-        if(any(duplicated(site.names))){
-          passed.validation$pass<-FALSE
-          showModal(modalDialog(
-            title = "Error",
-            "Duplicate sampling events are not permitted",
-            easyClose = T
-          ))
-        } else {
-          input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data])))
-          int.output<-aggregate(abund~taxa+sites, data=input,sum)
-          output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
-          output<-output[site.names[!duplicated(site.names)],]
-        }
+        input<-data.frame(sites=site.names,taxa=taxa.names, abund=as.numeric(as.character(raw.bio.data$data[-c(1),raw.colnames()%in%abund.ID.cols$data])))
+        int.output<-aggregate(abund~taxa+sites, data=input,sum)
+        output<-as.data.frame.matrix(xtabs(abund~sites+taxa,data=int.output))
+        output<-output[site.names[!duplicated(site.names)],]
       }
     )
     
@@ -491,19 +482,20 @@ shinyServer(function(input, output, session) {
     flag9<-any(grepl(")",colnames(output),fixed = T))
     flag10<-any(grepl("/",colnames(output),fixed = T))
     flag11<-any(grepl("spp.",colnames(output),fixed = T))
+    flag12<-any(grepl("1|2|3|4|5|6|7|8|9|0",colnames(output),fixed = F))
     
     if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11)){
       passed.validation$pass<-FALSE
       showModal(modalDialog(
         title = "Error",
-        "Taxa names cannot contain: spaces, punctuation, sp. spp, gr., group, complex, etc.",
+        "Taxa names cannot contain: duplicates, numbers, spaces, punctuation, sp. spp, gr., group, complex, etc.",
         easyClose = T
       ))
     } 
     
-    flag12<-any(colSums(output)==0)
+    flag13<-any(colSums(output)==0)
     
-    if (any(flag12)){
+    if (any(flag13)){
       passed.validation$pass<-FALSE
       showModal(modalDialog(
         title = "Error",
@@ -511,6 +503,7 @@ shinyServer(function(input, output, session) {
         easyClose = T
       ))
     } 
+    
     
     validate(
       need(passed.validation$pass,"Data must pass validation")
@@ -1085,7 +1078,7 @@ shinyServer(function(input, output, session) {
   #    Combine all available data into 1 dataset
   #########################################################
   
-  all.data<-reactiveValues(data=NULL)
+  all.data<-reactiveValues(data=NULL,untransformed=NULL)
   
   observeEvent(
     c(input$finalize_raw,
@@ -1110,33 +1103,47 @@ shinyServer(function(input, output, session) {
     validate(
       need(passed.validation$pass,"Data must pass validation")
     )
-    
 
     all.data$data<-taxa.by.site$data.alt.colnames
-    
+    all.data$untransformed<-taxa.by.site$data.alt.colnames
+
     if (!is.null(site.ID.cols$data)){
       all.data$data<-cbind(do.call(rbind,strsplit(rownames(all.data$data),";")),all.data$data)
       colnames(all.data$data)[1:length(site.ID.cols$data)]<-site.ID.cols$data
+      
+      all.data$untransformed<-cbind(do.call(rbind,strsplit(rownames(all.data$untransformed),";")),all.data$data)
+      colnames(all.data$untransformed)[1:length(site.ID.cols$data)]<-site.ID.cols$data
     }
     
     if(input$metdata==F & !is.null(bio.data$data$Summary.Metrics)){
       all.data$data<-data.frame(cbind(all.data$data,bio.data$data$Summary.Metrics,feeding.data$data.reduced,habitat.data$data))
+      
+      all.data$untransformed<-data.frame(cbind(all.data$untransformed,bio.data$data$untransformed.metrics,feeding.data$data.reduced,habitat.data$data))
+      
     }
     
     if(input$metdata==T & !is.null(bio.data$data$Summary.Metrics)){
       all.data$data<-data.frame(cbind(all.data$data,bio.data$data$Summary.Metrics))
+      
+      all.data$untransformed<-data.frame(cbind(all.data$untransformed,bio.data$data$Summary.Metrics))
     }
     
     if(!is.null(habitat.by.site$data)){
       all.data$data<-data.frame(cbind(all.data$data,habitat.by.site$data))
+      
+      all.data$untransformed<-data.frame(cbind(all.data$untransformed,habitat.by.site$data))
     }
     
     if(!is.null(coordinates.by.site$data.all)){
       all.data$data <- data.frame(cbind(all.data$data,coordinates.by.site$data.all))
+      
+      all.data$untransformed <- data.frame(cbind(all.data$untransformed,coordinates.by.site$data.all))
     }
     
     if (!is.null(reftest.by.site$data)){
       all.data$data <- data.frame(cbind(all.data$data,reftest.by.site$data))
+      
+      all.data$untransformed <- data.frame(cbind(all.data$untransformed,reftest.by.site$data))
     }
     
     #if (!is.null(missing.sampling.events$full.data)&!is.null(coordinates.by.site$data.all)){
@@ -1152,6 +1159,7 @@ shinyServer(function(input, output, session) {
     #}
   })
 
+  
   #########################################################
   #NN Site Matching + Metric Selection
   #########################################################
@@ -2586,6 +2594,111 @@ shinyServer(function(input, output, session) {
   )
   
 
+  #########################################################
+  #Data summaries Table
+  #########################################################
+  datasum_table<-reactiveValues(data=NULL)
+  
+  output$datsum_tabresponse<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    if(input$metdata==T){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    selectInput("datsum_tabresponse_in",label="Response",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_tabgrpfct1<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_tabgrpfct1_in",label="Group Factor 1",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  output$datsum_tabgrpfct2<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_tabgrpfct2_in",label="Group Factor 2",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  output$datsum_tabgrpfct3<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_tabgrpfct3_in",label="Group Factor 3",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsumtable<-renderDataTable({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    validate(
+      need(!is.null(input$datsum_tabgrpfct1_in),"")
+    )
+    fact1<-NA
+    fact2<-NA
+    fact3<-NA
+    if(input$datsum_tabgrpfct1_in!="Choose") {fact1<-as.factor(all.data$data[,input$datsum_tabgrpfct1_in])}
+    if(input$datsum_tabgrpfct2_in!="Choose") {fact2<-as.factor(all.data$data[,input$datsum_tabgrpfct2_in])}
+    if(input$datsum_tabgrpfct3_in!="Choose") {fact3<-as.factor(all.data$data[,input$datsum_tabgrpfct3_in])}
+    fun1<-if(input$datasum_fun=="Sum") {function(x) sum(x)} else 
+      if (input$datasum_fun=="Mean"){function(x) mean(x)} else
+        if (input$datasum_fun=="5th"){function(x) quantile(x,0.05)} else
+          if (input$datasum_fun=="25th"){function(x) quantile(x,0.25)} else
+            if (input$datasum_fun=="75th"){function(x) quantile(x,0.75)} else
+              if (input$datasum_fun=="95th"){function(x) quantile(x,0.95)} 
+                
+    if(input$datsum_tabgrpfct1_in!="Choose" & input$datsum_tabresponse_in!="Choose" & !is.null(input$datasum_fun)){
+      fact.all<-list(fact1,fact2,fact3)
+      fact.all<-fact.all[!is.na(fact.all)]
+      names<-c(input$datsum_tabgrpfct1_in,input$datsum_tabgrpfct2_in,input$datsum_tabgrpfct3_in, paste0(input$datasum_fun," ",input$datsum_tabresponse_in))
+      names<-names[names!="Choose"]
+      if (input$datsum_tab_usetrans){
+        dat1<-all.data$data[,input$datsum_tabresponse_in]
+      } else {
+        dat1<-all.data$untransformed[,input$datsum_tabresponse_in]
+      }
+      table<-aggregate(dat1, by=fact.all, FUN=fun1)
+      colnames(table)<-c(names)
+      datasum_table$data<-table
+      
+      DT::datatable(table,filter="top",selection="none",rownames=F, options=list(pageLength = 10,scrollX=T))
+    }
+  })
+  
+  output$download_datasum_table<-downloadHandler(filename = function() { paste("Summary-",input$inrawbioFile[1], sep='') },
+                                            content = function(file) {write.csv(datasum_table$data,file,row.names = T)})
+  
+  
+  #########################################################
+  #Data summaries Scatterplot
+  #########################################################
   
   
   #########################################################
@@ -2607,7 +2720,7 @@ shinyServer(function(input, output, session) {
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
       )
     }
-    if(input$metdata==F){
+    if(input$metdata==T){
       avail.params<-list(
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
         Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
