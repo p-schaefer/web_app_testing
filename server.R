@@ -484,7 +484,7 @@ shinyServer(function(input, output, session) {
     flag11<-any(grepl("spp.",colnames(output),fixed = T))
     flag12<-any(grepl("1|2|3|4|5|6|7|8|9|0",colnames(output),fixed = F))
     
-    if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11)){
+    if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11,flag12)){
       passed.validation$pass<-FALSE
       showModal(modalDialog(
         title = "Error",
@@ -493,9 +493,18 @@ shinyServer(function(input, output, session) {
       ))
     } 
     
-    flag13<-any(colSums(output)==0)
-    
+    flag13<-any(is.na(output))
     if (any(flag13)){
+      passed.validation$pass<-FALSE
+      showModal(modalDialog(
+        title = "Error",
+        "Wide datasets cannot contain blank cells or NA cells",
+        easyClose = T
+      ))
+    } 
+
+    flag14<-any(colSums(output,na.rm=T)==0)
+    if (any(flag14)){
       passed.validation$pass<-FALSE
       showModal(modalDialog(
         title = "Error",
