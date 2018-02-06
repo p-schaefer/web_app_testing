@@ -395,33 +395,60 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           conditionalPanel("input.sidebarmenu === 'explorationSetup'",
                            fluidRow(
-                             tabBox(width=9,
+                             tabBox(width=12,
                                     tabPanel(h4("Table"),
                                              fluidPage(
-                                               column(width=4,
+                                               column(width=2,
                                                       uiOutput("datsum_tabresponse"),
                                                       uiOutput("datsum_tabgrpfct1"),
                                                       uiOutput("datsum_tabgrpfct2"),
                                                       uiOutput("datsum_tabgrpfct3"),
-                                                      selectInput("datasum_fun","Function", list(General=c("Sum","Mean"),
-                                                                                                 Percentiles=c("5th","25th","50th","75th","95th")),
-                                                                  multiple=F,selected="Sum"),
                                                       checkboxInput("datsum_tab_usetrans","Use transformed data"),
                                                       downloadButton("download_datasum_table","Download")
                                                ),
-                                               column(width=6,
+                                               column(width=10,
                                                       dataTableOutput("datsumtable"))
                                              )
                                     ),
-                                    tabPanel(h4("Correlations")
+                                    #tabPanel(h4("Correlations")
+                                    #),
+                                    tabPanel(h4("Scatter Plots"),
+                                             fluidPage(
+                                               column(width=2,
+                                                      uiOutput("datsum_scatx"),
+                                                      uiOutput("datsum_scaty"),
+                                                      uiOutput("datsum_scatcol"),
+                                                      uiOutput("datsum_scatgroup"),
+                                                      selectInput("datsum_scatscales","Axes scaling (groups only)", list("Free","Both Fixed","Fixed x","Fixed y")),
+                                                      selectInput("datsum_scattrend","Trend line", list("None","Linear","Loess")),
+                                                      checkboxInput("datsum_scat_usetrans","Use transformed data",value=T),
+                                                      downloadButton("download_datasum_scatter","Download")
+                                               ),
+                                               column(width=10,
+                                                      plotOutput("dastum_scatplot")
+                                                      )
+                                             )
                                     ),
-                                    tabPanel(h4("Scatter Plots")
+                                    tabPanel(h4("Box Plots"),
+                                             fluidPage(
+                                               column(width=2,
+                                                      uiOutput("datsum_boxx"),
+                                                      uiOutput("datsum_boxy"),
+                                                      uiOutput("datsum_boxgroup"),
+                                                      selectInput("datsum_boxscales","Axes scaling (groups only)", list("Free","Both Fixed","Fixed x","Fixed y")),
+                                                      checkboxInput("datsum_box_usetrans","Use transformed data",value=T),
+                                                      downloadButton("download_datasum_box","Download")
+                                               ),
+                                               column(width=10,
+                                                      plotOutput("dastum_boxplot")
+                                               )
+                                             )
+                                             
                                     ),
-                                    tabPanel(h4("Box Plots")
-                                    ),
-                                    tabPanel(h4("Pie Charts")
-                                    ),
-                                    tabPanel(h4("Exploratory models")
+                                    #tabPanel(h4("Pie Charts")
+                                    #),
+                                    tabPanel(h4("Exploratory models"),
+                                             helpText("Coming soon!")
                                     )
                              )
                            )

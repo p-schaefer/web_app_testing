@@ -2659,7 +2659,7 @@ shinyServer(function(input, output, session) {
       need(!is.null(all.data$data),"")
     )
     validate(
-      need(!is.null(input$datsum_tabgrpfct1_in),"")
+      need(!is.null(input$datsum_tabgrpfct1_in),"Select Response and at least 1 grouping factor")
     )
     fact1<-NA
     fact2<-NA
@@ -2667,24 +2667,22 @@ shinyServer(function(input, output, session) {
     if(input$datsum_tabgrpfct1_in!="Choose") {fact1<-as.factor(all.data$data[,input$datsum_tabgrpfct1_in])}
     if(input$datsum_tabgrpfct2_in!="Choose") {fact2<-as.factor(all.data$data[,input$datsum_tabgrpfct2_in])}
     if(input$datsum_tabgrpfct3_in!="Choose") {fact3<-as.factor(all.data$data[,input$datsum_tabgrpfct3_in])}
-    fun1<-if(input$datasum_fun=="Sum") {function(x) sum(x)} else 
-      if (input$datasum_fun=="Mean"){function(x) mean(x)} else
-        if (input$datasum_fun=="5th"){function(x) quantile(x,0.05)} else
-          if (input$datasum_fun=="25th"){function(x) quantile(x,0.25)} else
-            if (input$datasum_fun=="75th"){function(x) quantile(x,0.75)} else
-              if (input$datasum_fun=="95th"){function(x) quantile(x,0.95)} 
+    fun1<-function(x) cbind(sum(x,na.rm=T),mean(x,na.rm=T),sd(x,na.rm=T),min(x,na.rm=T),max(x,na.rm=T),quantile(x,0.05,na.rm=T),
+                            quantile(x,0.25,na.rm=T),quantile(x,0.50,na.rm=T),quantile(x,0.75,na.rm=T),quantile(x,0.95,na.rm=T))
                 
-    if(input$datsum_tabgrpfct1_in!="Choose" & input$datsum_tabresponse_in!="Choose" & !is.null(input$datasum_fun)){
+    if(input$datsum_tabgrpfct1_in!="Choose" & input$datsum_tabresponse_in!="Choose"){
       fact.all<-list(fact1,fact2,fact3)
       fact.all<-fact.all[!is.na(fact.all)]
-      names<-c(input$datsum_tabgrpfct1_in,input$datsum_tabgrpfct2_in,input$datsum_tabgrpfct3_in, paste0(input$datasum_fun," ",input$datsum_tabresponse_in))
+      names<-c(input$datsum_tabgrpfct1_in,input$datsum_tabgrpfct2_in,input$datsum_tabgrpfct3_in,
+               "Sum","Mean","SD","Min","Max","5th Percentile","25th Percentile","50th Percentile","75th Percentile","95th Percentile")
       names<-names[names!="Choose"]
       if (input$datsum_tab_usetrans){
         dat1<-all.data$data[,input$datsum_tabresponse_in]
       } else {
         dat1<-all.data$untransformed[,input$datsum_tabresponse_in]
       }
-      table<-aggregate(dat1, by=fact.all, FUN=fun1)
+      table<-aggregate(dat1, by=fact.all, FUN=fun1,simplify=T)
+      table<-cbind(table[,1:(ncol(table)-1)],table$x)
       colnames(table)<-c(names)
       datasum_table$data<-table
       
@@ -2698,6 +2696,250 @@ shinyServer(function(input, output, session) {
   
   #########################################################
   #Data summaries Scatterplot
+  #########################################################
+  output$datsum_scatx<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    if(input$metdata==T){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    selectInput("datsum_scatx_in",label="x-variable",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_scaty<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    if(input$metdata==T){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    selectInput("datsum_scaty_in",label="y-variable",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_scatgroup<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_scatgroup1_in",label="Grouping",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  output$datsum_scatcol<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_scatcol_in",label="Colour",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  dastum_scatplot.raw<-reactive({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    validate(
+      need(!is.null(input$datsum_scatx_in) & !is.null(input$datsum_scaty_in),"Select x and y variables")
+    )
+    
+    if (input$datsum_scat_usetrans){
+      dat1<-all.data$data
+    } else {
+      dat1<-all.data$untransformed
+    }
+    
+    xvar<-if(input$datsum_scatx_in!="Choose") input$datsum_scatx_in else NA
+    yvar<-if(input$datsum_scaty_in!="Choose") input$datsum_scaty_in else NA
+    colvar<-if(input$datsum_scatcol_in!="Choose") input$datsum_scatcol_in else NA
+    groupvar<-if(input$datsum_scatgroup1_in!="Choose") input$datsum_scatgroup1_in else NA
+    scalevar<-if(input$datsum_scatscales=="Free") {"free"} else
+      if(input$datsum_scatscales=="Both Fixed") {"fixed"} else
+        if(input$datsum_scatscales=="Fixed x") {"free_y"} else
+          if(input$datsum_scatscales=="Fixed y") {"free_x"} else
+            
+    validate(
+      need(!is.na(xvar)&!is.na(yvar),"")
+    )
+    if (!is.na(xvar)&!is.na(yvar)){
+      p<-ggplot2::ggplot(dat1, aes_string(x=paste0(xvar),y=paste0(yvar))) + geom_point() +theme_bw()
+      if(!is.na(colvar)){
+        p<-ggplot2::ggplot(dat1, aes_string(x=xvar,y=yvar,colour=paste0(colvar))) + geom_point() +theme_bw()
+      }
+      if(input$datsum_scattrend=="Linear"){
+        p<-p+geom_smooth(method=lm)
+      } else if (input$datsum_scattrend=="Loess"){
+        p<-p+geom_smooth(method=loess)
+        
+      }
+      if (!is.na(groupvar)){
+        p<-p+facet_wrap(as.formula(paste0("~",groupvar)),scales=scalevar)
+      }
+      #p
+    } else {
+      p<-ggplot()+theme_bw()
+    }
+    p
+  })
+  
+  output$dastum_scatplot <- renderPlot({
+    validate(
+      need(!is.null(input$datsum_scatx_in) & !is.null(input$datsum_scaty_in),"Select x and y variables")
+    )
+    if(!is.null(input$datsum_scatx_in) & !is.null(input$datsum_scaty_in)){
+      print(dastum_scatplot.raw())
+    }
+  })
+  
+  output$download_datasum_scatter<-downloadHandler(
+    filename = function() {
+      paste0(input$datsum_scatx_in," v ", input$datsum_scaty_in,".pdf", sep="")
+    },
+    content = function(file) {
+      pdf(file, height=8,width=8)
+      print(dastum_scatplot.raw())
+      dev.off()
+    }
+  )
+  #########################################################
+  #Data summaries Boxplots
+  #########################################################
+  output$datsum_boxy<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    if(input$metdata==F){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Taxa=colnames(all.data$data)[colnames(all.data$data)%in%colnames(taxa.by.site$data.alt.colnames)],
+        Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
+        Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    if(input$metdata==T){
+      avail.params<-list(
+        Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
+        Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+      )
+    }
+    selectInput("datsum_boxx_in",label="y-variable",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_boxx<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_boxy_in",label="x-variable",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_boxgroup<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+    )
+    selectInput("datsum_boxgroup1_in",label="Grouping",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+
+  dastum_boxplot.raw<-reactive({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    validate(
+      need(!is.null(input$datsum_boxx_in) & !is.null(input$datsum_boxy_in),"Select x and y variables")
+    )
+    
+    if (input$datsum_box_usetrans){
+      dat1<-all.data$data
+    } else {
+      dat1<-all.data$untransformed
+    }
+    
+    xvar<-if(input$datsum_boxx_in!="Choose") input$datsum_boxx_in else NA
+    yvar<-if(input$datsum_boxy_in!="Choose") input$datsum_boxy_in else NA
+    groupvar<-if(input$datsum_boxgroup1_in!="Choose") input$datsum_boxgroup1_in else NA
+    scalevar<-if(input$datsum_boxscales=="Free") {"free"} else
+      if(input$datsum_boxscales=="Both Fixed") {"fixed"} else
+        if(input$datsum_boxscales=="Fixed x") {"free_y"} else
+          if(input$datsum_boxscales=="Fixed y") {"free_x"} else
+            
+    validate(
+      need(!is.na(xvar)&!is.na(yvar),"")
+    )
+    if (!is.na(xvar)&!is.na(yvar)){
+      p<-ggplot2::ggplot(dat1, aes_string(y=paste0(xvar),x=paste0(yvar))) + geom_boxplot() +theme_bw()
+      if (!is.na(groupvar)){
+        p<-p+facet_wrap(as.formula(paste0("~",groupvar)),scales=scalevar)
+      }
+      #p
+    } else {
+      p<-ggplot()+theme_bw()
+    }
+    p
+  })
+  
+  output$dastum_boxplot <- renderPlot({
+    validate(
+      need(!is.null(input$datsum_boxx_in) & !is.null(input$datsum_boxy_in),"Select x and y variables")
+    )
+    if(!is.null(input$datsum_boxx_in) & !is.null(input$datsum_boxy_in)){
+      print(dastum_boxplot.raw())
+    }
+  })
+  
+  output$download_datasum_box<-downloadHandler(
+    filename = function() {
+      paste0(input$datsum_boxx_in," v ", input$datsum_boxy_in,".pdf", sep="")
+    },
+    content = function(file) {
+      pdf(file, height=8,width=8)
+      print(dastum_boxplot.raw())
+      dev.off()
+    }
+  )
+  
+  #########################################################
+  #Data summaries Piecharts
   #########################################################
   
   
