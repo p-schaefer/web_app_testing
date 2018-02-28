@@ -84,13 +84,13 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         ),
                                         menuSubItem("Multiple Sites",tabName="RCA_sub_batch",icon=NULL)
                                         
-                               ),
-                               menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
-                                        menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
-                               ),
-                               menuItem("Generate Reports",tabname="Reports",icon=icon('file-text'),
-                                        menuSubItem("In Development",tabName = "ReportsSetup",icon=NULL)
-                               )
+                               )#,
+                               #menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
+                               #         menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
+                               #),
+                               #menuItem("Generate Reports",tabname="Reports",icon=icon('file-text'),
+                               #         menuSubItem("In Development",tabName = "ReportsSetup",icon=NULL)
+                               #)
                                
                    )
   )
@@ -245,53 +245,55 @@ body <- shinydashboard::dashboardBody(
                                              )
                                              
                                     ),
-                                    tabPanel("Taxa",
-                                             useShinyjs(),
-                                             conditionalPanel(condition="input.finalize_raw>0 && output.show_mets == true",
-                                                              conditionalPanel("input.metdata==false",
-                                                                               box(title="Taxa",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                                   DT::dataTableOutput("view.taxa")
-                                                                               )
-                                                              ),
-                                                              box(title="Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                  DT::dataTableOutput("view.metrics.raw")
-                                                              ),
-                                                              br(),
-                                                              fluidRow(
-                                                                column(width=3,
-                                                                       conditionalPanel(condition="input.metdata == false",
-                                                                                        box(title="Download Data",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
-                                                                                            downloadButton("download_raw_taxa","Download Taxa Table"),
-                                                                                            downloadButton("download_raw_mets","Download Summary Metrics"),
-                                                                                            downloadButton("download_taxa_atts","Download Taxa Attributes")
+                                    #conditionalPanel(condition="output.rawfinalized1",
+                                                     tabPanel("Taxa",
+                                                              useShinyjs(),
+                                                              conditionalPanel(condition="input.finalize_raw>0 && output.show_mets == true",
+                                                                               conditionalPanel("input.metdata==false",
+                                                                                                box(title="Taxa",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                                                    DT::dataTableOutput("view.taxa")
+                                                                                                )
+                                                                               ),
+                                                                               box(title="Summary Metrics",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                                   DT::dataTableOutput("view.metrics.raw")
+                                                                               ),
+                                                                               br(),
+                                                                               fluidRow(
+                                                                                 column(width=3,
+                                                                                        conditionalPanel(condition="input.metdata == false",
+                                                                                                         box(title="Download Data",width=12,status="primary",collapsible = T,solidHeader = T,collapsed = F,
+                                                                                                             downloadButton("download_raw_taxa","Download Taxa Table"),
+                                                                                                             downloadButton("download_raw_mets","Download Summary Metrics"),
+                                                                                                             downloadButton("download_taxa_atts","Download Taxa Attributes")
+                                                                                                         )
                                                                                         )
-                                                                       )
+                                                                                 )
+                                                                               )
+                                                              )
+                                                     ),
+                                                     tabPanel("Habitat",
+                                                              DT::dataTableOutput("view.habitat"),
+                                                              br(),
+                                                              hr(),
+                                                              fluidRow(
+                                                                box(title="Factor variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
+                                                                    uiOutput("dispaly_habitat_factors"),
+                                                                    br(),
+                                                                    actionButton("habitat_convert_fact_to_numb","Convert to numeric")
+                                                                ),
+                                                                box(title="Numeric variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
+                                                                    uiOutput("dispaly_habitat_numeric"),
+                                                                    br(),
+                                                                    actionButton("habitat_convert_numb_to_fact","Convert to factor")
                                                                 )
                                                               )
-                                             )
-                                    ),
-                                    tabPanel("Habitat",
-                                             DT::dataTableOutput("view.habitat"),
-                                             br(),
-                                             hr(),
-                                             fluidRow(
-                                               box(title="Factor variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
-                                                   uiOutput("dispaly_habitat_factors"),
-                                                   br(),
-                                                   actionButton("habitat_convert_fact_to_numb","Convert to numeric")
-                                               ),
-                                               box(title="Numeric variables",width=5,status="success",collapsible = F,solidHeader = T,collapsed = F,
-                                                   uiOutput("dispaly_habitat_numeric"),
-                                                   br(),
-                                                   actionButton("habitat_convert_numb_to_fact","Convert to factor")
-                                               )
-                                             )
-                                    ),
-                                    tabPanel("Coordinates",
-                                             DT::dataTableOutput("view.coords"),
-                                             br(),
-                                             br()
-                                    )
+                                                     ),
+                                                     tabPanel("Coordinates",
+                                                              DT::dataTableOutput("view.coords"),
+                                                              br(),
+                                                              br()
+                                                     )
+                                    #)
                                     
                              )
                            )
@@ -447,6 +449,9 @@ body <- shinydashboard::dashboardBody(
                                     ),
                                     #tabPanel(h4("Pie Charts")
                                     #),
+                                    tabPanel(h4("Ordinations"),
+                                             helpText("Coming soon!")
+                                    ),
                                     tabPanel(h4("Exploratory models"),
                                              helpText("Coming soon!")
                                     )

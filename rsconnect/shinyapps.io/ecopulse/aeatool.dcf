@@ -5,8 +5,8 @@ account: ecopulse
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 210709
-bundleId: 1207398
+bundleId: 1209160
 url: https://ecopulse.shinyapps.io/aeatool/
-when: 1517790578.36035
+when: 1517878412.14696
 asMultiple: FALSE
 asStatic: FALSE

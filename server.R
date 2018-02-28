@@ -525,8 +525,15 @@ shinyServer(function(input, output, session) {
     
     taxa.by.site$data.alt.colnames<-output
     colnames(taxa.by.site$data.alt.colnames)<-gsub(";",".",colnames(output),fixed=T)
-    
   })
+
+  #observeEvent(input$finalize_raw,{
+  #  if(!is.null(taxa.by.site$data)){
+  #    output$rawfinalized1<-reactive({TRUE})
+  #    outputOptions(output, "rawfinalized1", suspendWhenHidden = FALSE)
+  #  }
+  #})
+  
   output$view.taxa<-renderDataTable({#Renders raw data table
     DT::datatable(taxa.by.site$data,
                   options=list(pageLength = 5,scrollX=T))
