@@ -84,13 +84,13 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         ),
                                         menuSubItem("Multiple Sites",tabName="RCA_sub_batch",icon=NULL)
                                         
-                               ),
-                               menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
-                                        menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
-                               ),
-                               menuItem("Generate Reports",tabname="Reports",icon=icon('file-text'),
-                                        menuSubItem("In Development",tabName = "ReportsSetup",icon=NULL)
-                               )
+                               )#,
+                               #menuItem("Trends",tabname="Trends",icon=icon('line-chart'),
+                               #         menuSubItem("In Development",tabName = "TrendsSetup",icon=NULL)
+                               #)#,
+                               #menuItem("Generate Reports",tabname="Reports",icon=icon('file-text'),
+                               #         menuSubItem("In Development",tabName = "ReportsSetup",icon=NULL)
+                               #)
                                
                    )
   )
