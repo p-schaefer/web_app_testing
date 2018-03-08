@@ -32,7 +32,7 @@ header <- shinydashboard::dashboardHeader(
 sidebar <- shinydashboard::dashboardSidebar(
   conditionalPanel(condition="output.loggedin1", 
                    sidebarMenu(id = "sidebarmenu",
-                               useShinyjs(),
+                               #useShinyjs(),
                                menuItem("Introduction", tabName = "introduction", icon = icon("list-alt")#,
                                         #menuSubItem("Details",tabName = "Details")
                                ),
@@ -118,8 +118,9 @@ body <- shinydashboard::dashboardBody(
                                       helpText("This package provides functionallity for:"),
                                       helpText("1) calculation of indicator benthic macroinvertebrate indicator metrics from taxon count data"),
                                       helpText("  - Users can supply additional metrics such as: fisheries, diatoms, algae, etc."),
-                                      helpText("2) visualizing spatial patterns in taxa and indicator metrics through built-in GIS functionallity (still limited)"),
-                                      helpText("3) An implimentation of a Reference Condition Approach for making assessments of aquatic ecosystem integrity. The following tools are available:"),
+                                      helpText("2) Summarize and visualize data through a variety of plots and graphs"),
+                                      helpText("3) visualizing spatial patterns in taxa and indicator metrics through built-in GIS functionallity (still limited)"),
+                                      helpText("4) An implimentation of a Reference Condition Approach for making assessments of aquatic ecosystem integrity. The following tools are available:"),
                                       helpText("   - Nearest-Neighbour Site Matching between 'test' and 'reference' sites (ANNA and RDA-ANNA) using user supplied habitat descriptors"),
                                       helpText("   - user-supplied matrix of matched 'test' and 'reference' sites"),
                                       helpText("   - Test Site Analysis (TSA) to evaluate whether biological communities at test sites are significantly different from variation observed in nearest-neighbour reference sites"),
@@ -133,9 +134,10 @@ body <- shinydashboard::dashboardBody(
                                       helpText("- Single input file for the follow data types: taxa or metrics, habitat descriptors, coordinates of sampling point"),
                                       helpText("- Support for long and wide data formats (long format recommended for lowest-practical-level taxonomy)"),
                                       helpText("- Support for wide data formats with multiple column headers"),
+                                      helpText("- Calculation data summaries (means, standard deviations, percentiles), based on user specified groups"),
+                                      helpText("- Scatter plots and box plots with various options for grouping and colouring"),
                                       helpText("- Calculation of indicator metrics for Benthic Macroinvertebrate taxa"),
-                                      helpText("- HBI will be calculated at family level only - for now"),
-                                      helpText("- Functional metrics can be calculated below family level"),
+                                      helpText("- Functional metrics and HBI can be calculated below family level"),
                                       helpText("- Download calculated Summary metrics as .csv file"),
                                       helpText("- Download calculated Taxa Attribute Data as .csv file"),
                                       helpText("- Transformations for metrics"),
@@ -155,7 +157,7 @@ body <- shinydashboard::dashboardBody(
                                       helpText("- Users can save and load datasets though the tool")
                                   ),
                                   box(title="Known Bugs",width=12,status="info",collapsible = T, collapsed = T,solidHeader = T,
-                                      helpText("- none, but some feature states have not been fully tested"),
+                                      helpText("- map will sometimes not load correctly, try turning off the legend"),
                                       helpText("If you encounter any bugs or crashes, email: ecopulseanalytics@gmail.com")
                                       
                                   )#,
