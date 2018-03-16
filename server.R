@@ -2898,6 +2898,31 @@ shinyServer(function(input, output, session) {
     )
     selectInput("datsum_boxgroup1_in",label="Grouping",choices=c("Choose",avail.params),multiple = FALSE)
   })
+  
+  output$datsum_box_addpoint<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    avail.params<-list(
+      Site_ID=site.ID.cols$data,
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Samples=rownames(all.data$data)
+    )
+    
+    selectInput("datsum_boxaddpoint_in",label="View individual sample",choices=c("Choose",avail.params),multiple = FALSE)
+  })
+  
+  output$datsum_box_addpointgroup<-renderUI({
+    validate(
+      need(!is.null(all.data$data),"")
+    )
+    
+    if(any(input$datsum_boxaddpoint_in%in%site.ID.cols$data|
+           input$datsum_boxaddpoint_in%in%colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)])){
+      avail.params1<-as.character(all.data$data[,input$datsum_boxaddpoint_in])
+      selectInput("datsum_boxaddpointgroup_in",label="Level",choices=c("Choose",avail.params1),multiple = FALSE)
+    }
+  })
 
   dastum_boxplot.raw<-reactive({
     validate(
@@ -2916,21 +2941,54 @@ shinyServer(function(input, output, session) {
     xvar<-if(input$datsum_boxx_in!="Choose") input$datsum_boxx_in else NA
     yvar<-if(input$datsum_boxy_in!="Choose") input$datsum_boxy_in else NA
     groupvar<-if(input$datsum_boxgroup1_in!="Choose") input$datsum_boxgroup1_in else NA
+    sample_point<-if(input$datsum_boxaddpoint_in!="Choose") input$datsum_boxaddpoint_in else NA
     scalevar<-if(input$datsum_boxscales=="Free") {"free"} else
       if(input$datsum_boxscales=="Both Fixed") {"fixed"} else
         if(input$datsum_boxscales=="Fixed x") {"free_y"} else
-          if(input$datsum_boxscales=="Fixed y") {"free_x"} else
-            
+          if(input$datsum_boxscales=="Fixed y") {"free_x"}
+    
+    if(any(sample_point%in%c(colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],site.ID.cols$data))) { 
+      sample_pointgroup <- if(input$datsum_boxaddpointgroup_in!="Choose") as.character(input$datsum_boxaddpointgroup_in) else NA
+    } else {
+      sample_pointgroup <- NA
+    }
+    
+    if(!is.na(sample_pointgroup)){
+      subsamp<-dat1[as.character(dat1[,sample_point])==sample_pointgroup,]
+    }
+
     validate(
-      need(!is.na(xvar)&!is.na(yvar),"")
+      need(!is.na(xvar),"")
     )
-    if (!is.na(xvar)&!is.na(yvar)){
-      p<-ggplot2::ggplot(dat1, aes_string(y=paste0(xvar),x=paste0(yvar))) + geom_boxplot() +theme_bw()
+    if (!is.na(xvar)){
+      p<-ggplot2::ggplot(dat1) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(NA)))+
+        theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
+      if(!is.na(sample_point)){
+        if(is.na(sample_pointgroup)){
+          p<-p+geom_point(data=dat1[sample_point,],aes_string(y=paste0(xvar),x=paste0(NA)),col="red",size=3)
+        } else {
+          p<-p+geom_point(data=subsamp,aes_string(y=paste0(xvar),x=paste0(NA)),col="red",size=3)
+        }
+      }
       if (!is.na(groupvar)){
         p<-p+facet_wrap(as.formula(paste0("~",groupvar)),scales=scalevar)
       }
-      #p
-    } else {
+      
+      if (!is.na(xvar)&!is.na(yvar)){
+        p<-ggplot2::ggplot(dat1) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(yvar))) #+theme_bw()
+        if(!is.na(sample_point)){
+          if(is.na(sample_pointgroup)){
+            p<-p+geom_point(data=dat1[sample_point,],aes_string(y=paste0(xvar),x=paste0(yvar)),col="red",size=3)
+          } else {
+            p<-p+geom_point(data=subsamp,aes_string(y=paste0(xvar),x=paste0(yvar)),col="red",size=3)
+          }
+        }
+        if (!is.na(groupvar)){
+          p<-p+facet_wrap(as.formula(paste0("~",groupvar)),scales=scalevar)
+        }
+        #p
+      }
+    }   else {
       p<-ggplot()+theme_bw()
     }
     p
@@ -2950,7 +3008,7 @@ shinyServer(function(input, output, session) {
       paste0(input$datsum_boxx_in," v ", input$datsum_boxy_in,".pdf", sep="")
     },
     content = function(file) {
-      pdf(file, height=8,width=8)
+      pdf(file, height=20,width=20)
       print(dastum_boxplot.raw())
       dev.off()
     }

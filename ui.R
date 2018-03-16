@@ -437,10 +437,15 @@ body <- shinydashboard::dashboardBody(
                                     tabPanel(h4("Box Plots"),
                                              fluidPage(
                                                column(width=2,
-                                                      uiOutput("datsum_boxx"),
                                                       uiOutput("datsum_boxy"),
+                                                      uiOutput("datsum_boxx"),
+                                                      hr(),
                                                       uiOutput("datsum_boxgroup"),
                                                       selectInput("datsum_boxscales","Axes scaling (groups only)", list("Free","Both Fixed","Fixed x","Fixed y")),
+                                                      hr(),
+                                                      uiOutput("datsum_box_addpoint"),
+                                                      uiOutput("datsum_box_addpointgroup"),
+                                                      hr(),
                                                       checkboxInput("datsum_box_usetrans","Use transformed data",value=T),
                                                       downloadButton("download_datasum_box","Download")
                                                ),
