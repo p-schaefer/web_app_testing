@@ -1,3 +1,6 @@
+#Note to future self. If you change HBI or taxa traits, need to update the data files here as well
+#
+
 library(BenthicAnalysistesting)
 library(shinyjs)
 library(shiny)
