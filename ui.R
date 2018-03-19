@@ -75,7 +75,10 @@ sidebar <- shinydashboard::dashboardSidebar(
                                         )
                                ),
                                menuItem("Data Summaries",tabname="DataExploration",icon=icon("eye", lib = "font-awesome"),
-                                        menuSubItem("Options",tabName = "explorationSetup",icon=NULL)
+                                        menuSubItem("Tables",tabName = "summaries_tables",icon=NULL),
+                                        menuSubItem("Graphs",tabName = "summaries_graphs",icon=NULL),
+                                        menuSubItem("Ordinations",tabName = "summaries_ordinations",icon=NULL),
+                                        menuSubItem("Exploratory Models",tabName = "summaries_models",icon=NULL)
                                ),
                                menuItem("Integrity Assessment",tabName="RCA_main", icon=icon("gears"),
                                         menuSubItem("Single Site",tabName="RCA_sub",icon=NULL),
@@ -396,9 +399,9 @@ body <- shinydashboard::dashboardBody(
                            
           ),
           ##################################################
-          # Data summaries
+          # Data summaries - tables
           ##################################################
-          conditionalPanel("input.sidebarmenu === 'explorationSetup'",
+          conditionalPanel("input.sidebarmenu === 'summaries_tables'",
                            fluidRow(
                              tabBox(width=12,
                                     tabPanel(h4("Table"),
@@ -414,9 +417,17 @@ body <- shinydashboard::dashboardBody(
                                                column(width=10,
                                                       dataTableOutput("datsumtable"))
                                              )
-                                    ),
-                                    #tabPanel(h4("Correlations")
-                                    #),
+                                    )
+                             )
+                           )
+          ),
+          ##################################################
+          # Data summaries - graphs
+          ##################################################
+          
+          conditionalPanel("input.sidebarmenu === 'summaries_graphs'",
+                           fluidRow(
+                             tabBox(width=12,
                                     tabPanel(h4("Scatter Plots"),
                                              fluidPage(
                                                column(width=2,
@@ -431,7 +442,7 @@ body <- shinydashboard::dashboardBody(
                                                ),
                                                column(width=10,
                                                       plotOutput("dastum_scatplot")
-                                                      )
+                                               )
                                              )
                                     ),
                                     tabPanel(h4("Box Plots"),
@@ -454,13 +465,31 @@ body <- shinydashboard::dashboardBody(
                                                )
                                              )
                                              
-                                    ),
-                                    #tabPanel(h4("Pie Charts")
-                                    #),
+                                    )
+                             )
+                           )
+                                    
+          ),
+          ##################################################
+          # Data summaries - ordinations
+          ##################################################
+          conditionalPanel("input.sidebarmenu === 'summaries_ordinations'",
+                           fluidRow(
+                             tabBox(width=12,
                                     tabPanel(h4("Ordinations"),
                                              helpText("Coming soon!")
-                                    ),
-                                    tabPanel(h4("Exploratory models"),
+                                    )
+                             )
+                           )
+          ),
+          ##################################################
+          # Data summaries - models
+          ##################################################
+          
+          conditionalPanel("input.sidebarmenu === 'summaries_models'",
+                           fluidRow(
+                             tabBox(width=12,
+                                    tabPanel(h4("Random Forest Models"),
                                              helpText("Coming soon!")
                                     )
                              )
