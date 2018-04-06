@@ -1692,7 +1692,9 @@ shinyServer(function(input, output, session) {
       }
       if (input$nn_method_b=="User Selected"){
         ref.set<-userMatchRefSites$TFmatrix[rownames(reftest.by.site$data)[reftest.by.site$data==0],]
-        ref.set2<-apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])
+        ref.set2<-data.frame(t(apply(as.matrix(ref.set),1, function(m) colnames(ref.set)[m])))
+        ref.set2[]<-lapply(ref.set2, as.character)
+        ref.set2<-setNames(split(ref.set2, seq(nrow(ref.set2))), rownames(ref.set2))
       }
       
       temp.all.data<-all.data$data
@@ -1718,10 +1720,10 @@ shinyServer(function(input, output, session) {
         ref.set3<-ref.set3[[1]]
         if (input$nn_method_b!="RDA-ANNA"){
           add.mets<-BenthicAnalysistesting::add.met(Test=temp.all.data[names(ref.set2[i]),colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
-                                                    Reference = temp.all.data[ref.set2[[i]],colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
+                                                    Reference = temp.all.data[paste0(ref.set2[[i]]),colnames(temp.all.data)%in%colnames(bio.data$data$Raw.Data)],
                                                     original=F)
           
-          i.mets<-cbind(temp.all.data[ref.set3,],add.mets)
+          i.mets<-cbind(temp.all.data[paste0(ref.set3),],add.mets)
           colnames(i.mets)<-gsub(";",".",colnames(i.mets),fixed = T)
           i.mets<-i.mets[,input$in_metric.select_b]
           
@@ -1762,7 +1764,7 @@ shinyServer(function(input, output, session) {
         if (input$nn_method_b=="ANNA"|input$nn_method_b=="User Selected"){
           temp<-data.frame(additional.metrics_b$data)
           temp<-temp[rownames(all.data$data),]
-          all.data$data<-data.frame(cbind(all.data$data,temp))
+          all.data$data<-data.frame(cbind(all.data$data[,!colnames(all.data$data)%in%colnames(temp)],temp))
           rm(temp)
         }
       }
@@ -1775,7 +1777,7 @@ shinyServer(function(input, output, session) {
       
       temp<-data.frame(tsa.results_b$data)
       temp<-temp[rownames(all.data$data),]
-      all.data$data<-data.frame(cbind(all.data$data,temp))
+      all.data$data<-data.frame(cbind(all.data$data[,!colnames(all.data$data)%in%colnames(temp)],temp))
       #all.data$data$TSA.Impairment<-factor(all.data$data$TSA.Impairment,levels(all.data$data$TSA.Impairment)[c(2,3,1)])
       
       rm(temp)
@@ -2886,7 +2888,8 @@ shinyServer(function(input, output, session) {
     )
     avail.params<-list(
       Site_ID=site.ID.cols$data,
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")]
     )
     selectInput("datsum_boxy_in",label="x-variable",choices=c("Choose",avail.params),multiple = FALSE)
   })
