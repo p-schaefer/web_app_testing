@@ -436,12 +436,37 @@ shinyServer(function(input, output, session) {
           site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
         }
         if(any(duplicated(site.names))){
-          passed.validation$pass<-FALSE
-          showModal(modalDialog(
-            title = "Error",
-            "Duplicate sampling events are not permitted",
-            easyClose = T
-          ))
+          if(input$metdata){
+            showModal(modalDialog(
+              title = "Warning",
+              "Duplicate sampling events were detected. Metrics and habitat variables have been averaged",
+              easyClose = T
+            ))
+            
+            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%taxa.ID.cols$data]
+            output<-data.frame(apply(output,2,as.numeric))
+            t1<-aggregate(output, by = list(site.names), mean)
+            output<-t1[,-c(1)]
+            rownames(output)<-t1[,1]
+            colnames(output)<-taxa.ID.cols$data
+            output<-output[site.names[!duplicated(site.names)],]
+            
+          } else {
+            showModal(modalDialog(
+              title = "Warning",
+              "Duplicate sampling events were detected. Taxa have been summed, habitat variables have been averaged",
+              easyClose = T
+            ))
+            
+            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%taxa.ID.cols$data]
+            output<-data.frame(apply(output,2,as.numeric))
+            t1<-aggregate(output, by = list(site.names), sum)
+            output<-t1[,-c(1)]
+            rownames(output)<-t1[,1]
+            colnames(output)<-taxa.ID.cols$data
+            output<-output[site.names[!duplicated(site.names)],]
+          }
+          
         } else {
           output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%taxa.ID.cols$data]
           output<-data.frame(apply(output,2,as.numeric))
@@ -474,47 +499,53 @@ shinyServer(function(input, output, session) {
       }
     )
     
-    flag1<-any(grepl(" ",colnames(output),fixed = T))
-    flag2<-any(grepl(".",colnames(output),fixed = T))
-    flag3<-any(grepl(",",colnames(output),fixed = T))
-    flag4<-any(grepl("sp.",colnames(output),fixed = T))
-    flag5<-any(grepl("gr.",colnames(output),fixed = T))
-    flag6<-any(grepl("group",colnames(output),fixed = T))
-    flag7<-any(grepl("complex",colnames(output),fixed = T))
-    flag8<-any(grepl("(",colnames(output),fixed = T))
-    flag9<-any(grepl(")",colnames(output),fixed = T))
-    flag10<-any(grepl("/",colnames(output),fixed = T))
-    flag11<-any(grepl("spp.",colnames(output),fixed = T))
-    flag12<-any(grepl("1|2|3|4|5|6|7|8|9|0",colnames(output),fixed = F))
+    if(passed.validation$pass){
+      flag1<-any(grepl(" ",colnames(output),fixed = T))
+      flag2<-any(grepl(".",colnames(output),fixed = T))
+      flag3<-any(grepl(",",colnames(output),fixed = T))
+      flag4<-any(grepl("sp.",colnames(output),fixed = T))
+      flag5<-any(grepl("gr.",colnames(output),fixed = T))
+      flag6<-any(grepl("group",colnames(output),fixed = T))
+      flag7<-any(grepl("complex",colnames(output),fixed = T))
+      flag8<-any(grepl("(",colnames(output),fixed = T))
+      flag9<-any(grepl(")",colnames(output),fixed = T))
+      flag10<-any(grepl("/",colnames(output),fixed = T))
+      flag11<-any(grepl("spp.",colnames(output),fixed = T))
+      flag12<-any(grepl("1|2|3|4|5|6|7|8|9|0",colnames(output),fixed = F))
+      
+      if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11,flag12)){
+        passed.validation$pass<-FALSE
+        showModal(modalDialog(
+          title = "Error",
+          "Taxa names cannot contain: duplicates, numbers, spaces, punctuation, sp. spp, gr., group, complex, etc.",
+          easyClose = T
+        ))
+      } 
+    }
     
-    if (any(flag1,flag2,flag3,flag4,flag5,flag6,flag7,flag8,flag9,flag10,flag11,flag12)){
-      passed.validation$pass<-FALSE
-      showModal(modalDialog(
-        title = "Error",
-        "Taxa names cannot contain: duplicates, numbers, spaces, punctuation, sp. spp, gr., group, complex, etc.",
-        easyClose = T
-      ))
-    } 
-    
-    flag13<-any(is.na(output))
-    if (any(flag13)){
-      passed.validation$pass<-FALSE
-      showModal(modalDialog(
-        title = "Error",
-        "Wide datasets cannot contain blank cells or NA cells",
-        easyClose = T
-      ))
-    } 
+    if(passed.validation$pass){
+      flag13<-any(is.na(output))
+      if (any(flag13)){
+        passed.validation$pass<-FALSE
+        showModal(modalDialog(
+          title = "Error",
+          "Wide datasets cannot contain blank cells or NA cells",
+          easyClose = T
+        ))
+      } 
+    }
 
-    flag14<-any(colSums(output,na.rm=T)==0)
-    if (any(flag14)){
-      passed.validation$pass<-FALSE
-      showModal(modalDialog(
-        title = "Error",
-        "Dataset cannot contain taxa with no occurances",
-        easyClose = T
-      ))
-    } 
+    if(passed.validation$pass){
+      flag14<-any(colSums(output,na.rm=T)==0)
+      if (any(flag14)){
+        passed.validation$pass<-FALSE
+        showModal(modalDialog(
+          title = "Error",
+          "Dataset cannot contain taxa with no occurances",
+          easyClose = T
+        ))
+      } 
+    }
     
     
     validate(
@@ -602,9 +633,21 @@ shinyServer(function(input, output, session) {
             site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
             site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
           }
-          output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
-          rownames(output)<-site.names
-          colnames(output)<-habitat.ID.cols$data
+
+          if(any(duplicated(site.names))){
+            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
+            output<-data.frame(apply(output,2,as.numeric))
+            t1<-aggregate(output, by = list(site.names), mean)
+            output<-t1[,-c(1)]
+            rownames(output)<-t1[,1]
+            colnames(output)<-habitat.ID.cols$data
+            output<-output[site.names[!duplicated(site.names)],]
+          } else {
+            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
+            rownames(output)<-site.names
+            colnames(output)<-habitat.ID.cols$data
+          }
+
         }
       )
       isolate(
@@ -649,16 +692,35 @@ shinyServer(function(input, output, session) {
               site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
               site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
             }
-            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
-                                      c(
-                                        which(raw.colnames()%in%coord.ID.cols$east),
-                                        which(raw.colnames()%in%coord.ID.cols$north),
-                                        which(raw.colnames()%in%coord.ID.cols$espg)
-                                      )]
-            rownames(output)<-site.names
-            output<-data.frame(apply(output,2,as.numeric))
-            output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
-            colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
+            
+            if(any(duplicated(site.names))){
+              output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                        c(
+                                          which(raw.colnames()%in%coord.ID.cols$east),
+                                          which(raw.colnames()%in%coord.ID.cols$north),
+                                          which(raw.colnames()%in%coord.ID.cols$espg)
+                                        )]
+              output<-data.frame(apply(output,2,as.numeric))
+              t1<-aggregate(output, by = list(site.names), mean)
+              output<-t1[,-c(1)]
+              rownames(output)<-t1[,1]
+              output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
+              colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
+              output<-output[site.names[!duplicated(site.names)],]
+            } else {
+              output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),
+                                        c(
+                                          which(raw.colnames()%in%coord.ID.cols$east),
+                                          which(raw.colnames()%in%coord.ID.cols$north),
+                                          which(raw.colnames()%in%coord.ID.cols$espg)
+                                        )]
+              rownames(output)<-site.names
+              output<-data.frame(apply(output,2,as.numeric))
+              output<-cbind(do.call(rbind,strsplit(site.names,";")),output)
+              colnames(output)<-c(site.ID.cols$data,"east","north","epsg")
+            }
+            
+            
           }
         )
         isolate(
@@ -751,6 +813,7 @@ shinyServer(function(input, output, session) {
   })
   
   reftest.by.site<-reactiveValues(data=NULL) #calculate habitat by site table
+  
   observeEvent(input$finalize_raw,{
     validate(
       need(passed.validation$pass,"Data must pass validation")
@@ -766,9 +829,21 @@ shinyServer(function(input, output, session) {
               site.names<-apply(raw.bio.data$data[-c(1:max(raw.data.rows(),1)),raw.colnames()%in%site.ID.cols$data],1,paste0,collapse="",sep=";")
               site.names<-substr(site.names,start=1,stop=(nchar(site.names)-1))
             }
-            output<-data.frame(as.numeric(as.character(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])))
-            rownames(output)<-site.names
-            colnames(output)<-reftest.ID.cols$data
+            
+            if(any(duplicated(site.names))){
+              output<-data.frame(as.numeric(as.character(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])))
+              output<-data.frame(apply(output,2,as.numeric))
+              t1<-aggregate(output, by = list(site.names), mean)
+              output<-data.frame(t1[,-c(1)])
+              rownames(output)<-t1[,1]
+              output<-data.frame(output[site.names[!duplicated(site.names)],])
+              rownames(output)<-site.names[!duplicated(site.names)]
+              colnames(output)<-reftest.ID.cols$data
+            } else {
+              output<-data.frame(as.numeric(as.character(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%reftest.ID.cols$data])))
+              rownames(output)<-site.names
+              colnames(output)<-reftest.ID.cols$data
+            }
           }
         )
         isolate(
