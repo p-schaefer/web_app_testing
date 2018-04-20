@@ -3046,8 +3046,14 @@ shinyServer(function(input, output, session) {
         theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
       if(!is.na(sample_point)){
         if(is.na(sample_pointgroup)){
+          p<-ggplot2::ggplot(dat1[!rownames(dat1)==sample_point,]) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(NA)))+
+            theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
+          
           p<-p+geom_point(data=dat1[sample_point,],aes_string(y=paste0(xvar),x=paste0(NA)),col="red",size=3)
         } else {
+          p<-ggplot2::ggplot(dat1[!rownames(dat1)%in%rownames(subsamp),]) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(NA)))+
+            theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
+          
           p<-p+geom_point(data=subsamp,aes_string(y=paste0(xvar),x=paste0(NA)),col="red",size=3)
         }
       }
@@ -3059,8 +3065,14 @@ shinyServer(function(input, output, session) {
         p<-ggplot2::ggplot(dat1) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(yvar))) #+theme_bw()
         if(!is.na(sample_point)){
           if(is.na(sample_pointgroup)){
+            p<-ggplot2::ggplot(dat1[!rownames(dat1)==sample_point,]) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(NA)))+
+              theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
+            
             p<-p+geom_point(data=dat1[sample_point,],aes_string(y=paste0(xvar),x=paste0(yvar)),col="red",size=3)
           } else {
+            p<-ggplot2::ggplot(dat1[!rownames(dat1)%in%rownames(subsamp),]) + geom_boxplot(aes_string(y=paste0(xvar),x=paste0(NA)))+
+              theme(axis.text.x = element_blank()) +xlab("") #+theme_bw()
+            
             p<-p+geom_point(data=subsamp,aes_string(y=paste0(xvar),x=paste0(yvar)),col="red",size=3)
           }
         }
