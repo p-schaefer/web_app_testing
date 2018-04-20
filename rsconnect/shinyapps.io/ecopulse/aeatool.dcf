@@ -1,12 +1,10 @@
 name: aeatool
 title: aeatool
-username:
 account: ecopulse
 server: shinyapps.io
-hostUrl: https://api.shinyapps.io/v1
 appId: 301959
-bundleId: 1328617
+bundleId: 1329900
 url: https://ecopulse.shinyapps.io/aeatool/
-when: 1524190193.61744
+when: 1524247670.28449
 asMultiple: FALSE
 asStatic: FALSE
