@@ -595,36 +595,38 @@ shinyServer(function(input, output, session) {
       need(input$time.ID!="","")
     )
     isolate(
-      if (input$time.ID!="") {
-        orig.ID<-rownames(taxa.by.site$data)
-        orig.ID<-data.frame(do.call(rbind,strsplit(as.character(orig.ID),";")))
-        colnames(orig.ID)<-site.ID.cols$data
-        orig.ID[,input$time.ID]<-as.numeric(as.character(orig.ID[,input$time.ID]))
-        
-        non.time.ID<-colwise(as.factor)(as.data.frame(orig.ID[,!colnames(orig.ID)%in%input$time.ID]))
-        if (length(which(!colnames(orig.ID)%in%input$time.ID))>1){
-          non.time.ID<-apply(non.time.ID,1,paste0,collapse="",sep=";")
-          non.time.ID<-as.factor(substr(non.time.ID,start=1,stop=(nchar(non.time.ID)-1)))
+      if (F){
+        if (input$time.ID!="") {
+          orig.ID<-rownames(taxa.by.site$data)
+          orig.ID<-data.frame(do.call(rbind,strsplit(as.character(orig.ID),";")))
+          colnames(orig.ID)<-site.ID.cols$data
+          orig.ID[,input$time.ID]<-as.numeric(as.character(orig.ID[,input$time.ID]))
+          
+          non.time.ID<-colwise(as.factor)(as.data.frame(orig.ID[,!colnames(orig.ID)%in%input$time.ID]))
+          if (length(which(!colnames(orig.ID)%in%input$time.ID))>1){
+            non.time.ID<-apply(non.time.ID,1,paste0,collapse="",sep=";")
+            non.time.ID<-as.factor(substr(non.time.ID,start=1,stop=(nchar(non.time.ID)-1)))
+          }
+          
+          time.range<-min(orig.ID[,input$time.ID]):max(orig.ID[,input$time.ID])
+          
+          expanded.ID<-expand.grid(X1=levels(non.time.ID),X2=time.range)
+          
+          expanded.ID1<-data.frame(cbind(do.call(rbind,strsplit(as.character(expanded.ID$X1),";")),expanded.ID[,-c(1)]))
+          colnames(expanded.ID1)<-c(site.ID.cols$data[!site.ID.cols$data%in%input$time.ID],input$time.ID)
+          expanded.ID1<-expanded.ID1[,site.ID.cols$data]
+          
+          orig.ID$missing<-T
+          
+          missing.samples<-merge(orig.ID,expanded.ID1,all=T)
+          missing.samples<-missing.samples[is.na(missing.samples$missing),!colnames(missing.samples)%in%"missing"]
+          
+          rnames<-apply(missing.samples,1,paste0,collapse="",sep=";")
+          rnames<-substr(rnames,start=1,stop=(nchar(rnames)-1))
+          
+          missing.sampling.events$full.data<-missing.samples
+          missing.sampling.events$rnames<-rnames
         }
-        
-        time.range<-min(orig.ID[,input$time.ID]):max(orig.ID[,input$time.ID])
-        
-        expanded.ID<-expand.grid(X1=levels(non.time.ID),X2=time.range)
-        
-        expanded.ID1<-data.frame(cbind(do.call(rbind,strsplit(as.character(expanded.ID$X1),";")),expanded.ID[,-c(1)]))
-        colnames(expanded.ID1)<-c(site.ID.cols$data[!site.ID.cols$data%in%input$time.ID],input$time.ID)
-        expanded.ID1<-expanded.ID1[,site.ID.cols$data]
-        
-        orig.ID$missing<-T
-        
-        missing.samples<-merge(orig.ID,expanded.ID1,all=T)
-        missing.samples<-missing.samples[is.na(missing.samples$missing),!colnames(missing.samples)%in%"missing"]
-        
-        rnames<-apply(missing.samples,1,paste0,collapse="",sep=";")
-        rnames<-substr(rnames,start=1,stop=(nchar(rnames)-1))
-        
-        missing.sampling.events$full.data<-missing.samples
-        missing.sampling.events$rnames<-rnames
       }
     )
   })
@@ -646,13 +648,16 @@ shinyServer(function(input, output, session) {
           }
 
           if(any(duplicated(site.names))){
-            output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
-            output<-data.frame(apply(output,2,as.numeric))
+            output<-data.frame(raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data])
+            output<-data.frame(apply(output,2,function(x) as.numeric(as.character(x))))
             t1<-aggregate(output, by = list(site.names), mean)
-            output<-t1[,-c(1)]
+            output<-data.frame(t1[,-c(1)])
             rownames(output)<-t1[,1]
             colnames(output)<-habitat.ID.cols$data
-            output<-output[site.names[!duplicated(site.names)],]
+            output<-data.frame(output[site.names[!duplicated(site.names)],])
+            rownames(output)<-site.names[!duplicated(site.names)]
+            colnames(output)<-habitat.ID.cols$data
+            
           } else {
             output<-raw.bio.data$data[max(raw.data.rows()+1,2):nrow(raw.bio.data$data),raw.colnames()%in%habitat.ID.cols$data]
             rownames(output)<-site.names
@@ -2483,20 +2488,29 @@ shinyServer(function(input, output, session) {
       nRef<-length(which(z.scores$ref==1))
       
       Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
-      Biodiversity<-c("Richness","Simpson")
-      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Biodiversity<-c("Richness","Simpson","Shannon","Percent.Dominance")
+      Taxonomy<-c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Isopoda","Percent.Coleoptera",
+                  "Ephem.as.Baetidae","Percent.EPT","Percent.mEPT","Percent.ICHAEBO",
+                  "EPT.Richness","Ephem.Richness","Percent.Ephem","Plec.Richness",
+                  "Percent.Plec","Trich.Richness","Percent.Trich","EPT.per.EPT.and.Chir",
+                  "Percent.Non.Chir.Dip","Trich.as.Hydropsychidae","Coleo.as.Elmidae","Percent.CIGH")
+      Sensitivity<-c("Intolerants.Richness" ,"Percent.Intolerants","HBI")
       Hydrology<-c("CEFI")
-      Habitat.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
-                        "Sprawler.Richness")
-      Feeding.Guilds<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
-                        "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
-                        "Gatherer.Richness")
+      Habitat.Guilds<-c("Predator.Percent" ,"Predator.Richness",
+                        "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                        "Shredder.Richness","Shredder.Percent"
+                        ,"Filterer.Percent","Filterer.Richness",
+                        "Gatherer.Percent","Gatherer.Richness",
+                        "ScraperGrazer.to.Shredder.Collector")
+      Feeding.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent",
+                        "Burrower.Richness","Sprawler.Percent","Sprawler.Richness",
+                        "Burrower.to.Sprawler.Clinger")
       
       #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
-      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
-      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
+      #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
+      plot.data<-data.frame(t(data.frame(max=rep(1,7),min=rep(0,7),test=NA)))
+      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds","Taxonomy")
       rownames(plot.data)[3]<-input$in_test_site_select
-      
       for (i in as.character(colnames(plot.data))) {
         try1<-try(eval(parse(text=paste0("data1<-z.scores[,colnames(z.scores)%in%",i, "]"))),silent=T)
         if(class(try1)=="try-error"){
@@ -2569,18 +2583,27 @@ shinyServer(function(input, output, session) {
       nRef<-length(which(z.scores$ref==1))
       
       Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
-      Biodiversity<-c("Richness","Simpson")
-      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Biodiversity<-c("Richness","Simpson","Shannon","Percent.Dominance")
+      Taxonomy<-c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Isopoda","Percent.Coleoptera",
+                  "Ephem.as.Baetidae","Percent.EPT","Percent.mEPT","Percent.ICHAEBO",
+                  "EPT.Richness","Ephem.Richness","Percent.Ephem","Plec.Richness",
+                  "Percent.Plec","Trich.Richness","Percent.Trich","EPT.per.EPT.and.Chir",
+                  "Percent.Non.Chir.Dip","Trich.as.Hydropsychidae","Coleo.as.Elmidae","Percent.CIGH")
+      Sensitivity<-c("Intolerants.Richness" ,"Percent.Intolerants","HBI")
       Hydrology<-c("CEFI")
-      Habitat.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
-                 "Sprawler.Richness")
-      Feeding.Guilds<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
-      "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
-      "Gatherer.Richness")
+      Habitat.Guilds<-c("Predator.Percent" ,"Predator.Richness",
+                        "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                        "Shredder.Richness","Shredder.Percent"
+                        ,"Filterer.Percent","Filterer.Richness",
+                        "Gatherer.Percent","Gatherer.Richness",
+                        "ScraperGrazer.to.Shredder.Collector")
+      Feeding.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent",
+                        "Burrower.Richness","Sprawler.Percent","Sprawler.Richness",
+                        "Burrower.to.Sprawler.Clinger")
       
       #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
-      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
-      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
+      plot.data<-data.frame(t(data.frame(max=rep(1,7),min=rep(0,7),test=NA)))
+      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds","Taxonomy")
       rownames(plot.data)[3]<-input$in_test_site_select
       
       for (i in as.character(colnames(plot.data))) {
@@ -2803,7 +2826,8 @@ shinyServer(function(input, output, session) {
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
       Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")]
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
     )
     selectInput("datsum_tabgrpfct1_in",label="Group Factor 1",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -2815,7 +2839,8 @@ shinyServer(function(input, output, session) {
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
       Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")]
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
     )
     selectInput("datsum_tabgrpfct2_in",label="Group Factor 2",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -2827,7 +2852,8 @@ shinyServer(function(input, output, session) {
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
       Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")]
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
     )
     selectInput("datsum_tabgrpfct3_in",label="Group Factor 3",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -2888,7 +2914,8 @@ shinyServer(function(input, output, session) {
         #Feeding_Traits=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
         #Habitat_Traits=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     if(input$metdata==T){
@@ -2897,7 +2924,8 @@ shinyServer(function(input, output, session) {
         Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     selectInput("datsum_scatx_in",label="x-variable",choices=c("Choose",avail.params),multiple = FALSE)
@@ -2916,7 +2944,8 @@ shinyServer(function(input, output, session) {
         #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
         #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     if(input$metdata==T){
@@ -2925,7 +2954,8 @@ shinyServer(function(input, output, session) {
         Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     selectInput("datsum_scaty_in",label="y-variable",choices=c("Choose",avail.params),multiple = FALSE)
@@ -2938,7 +2968,9 @@ shinyServer(function(input, output, session) {
     avail.params<-list(
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
     )
     selectInput("datsum_scatgroup1_in",label="Grouping",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -2949,7 +2981,9 @@ shinyServer(function(input, output, session) {
     avail.params<-list(
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
     )
     selectInput("datsum_scatcol_in",label="Colour",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -3036,7 +3070,8 @@ shinyServer(function(input, output, session) {
         #Feeding_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(feeding.data$data.reduced)],
         #Habitat_Groups=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.data$data)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     if(input$metdata==T){
@@ -3045,7 +3080,8 @@ shinyServer(function(input, output, session) {
         Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
         Summary_Metrics=colnames(all.data$data)[colnames(all.data$data)%in%colnames(bio.data$data$Summary.Metrics)],
         Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
-        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")]
+        Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment","Test.Site.D2")],
+        Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)]
       )
     }
     selectInput("datsum_boxx_in",label="y-variable",choices=c("Choose",avail.params),multiple = FALSE)
@@ -3071,7 +3107,8 @@ shinyServer(function(input, output, session) {
     avail.params<-list(
       Site_ID=site.ID.cols$data,
       Time=colnames(all.data$data)[colnames(all.data$data)%in%colnames(time.by.site$data)],
-      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)]
+      Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")]
     )
     selectInput("datsum_boxgroup1_in",label="Grouping",choices=c("Choose",avail.params),multiple = FALSE)
   })
@@ -3083,6 +3120,8 @@ shinyServer(function(input, output, session) {
     avail.params<-list(
       Site_ID=site.ID.cols$data,
       Habitat=colnames(all.data$data)[colnames(all.data$data)%in%colnames(habitat.by.site$data)],
+      Impairment=colnames(all.data$data)[colnames(all.data$data)%in%c("TSA.Impairment")],
+      Reference=colnames(all.data$data)[colnames(all.data$data)%in%colnames(reftest.by.site$data)],
       Samples=rownames(all.data$data)
     )
     
