@@ -29,6 +29,7 @@ library(googledrive)
 library(gsheet)
 library(classInt)
 library(corrplot)
+library(corpcor)
 #library(shinyDND)
 
 
@@ -2086,18 +2087,28 @@ shinyServer(function(input, output, session) {
       nRef<-length(which(z.scores$ref==1))
       
       Community.Structure<-c("O.E","Bray.Curtis","CA1","CA2")
-      Biodiversity<-c("Richness","Simpson")
-      Sensitivity<-c("HBI","Percent.Intolerants","Intolerants.Richness")
+      Biodiversity<-c("Richness","Simpson","Shannon","Percent.Dominance")
+      Taxonomy<-c("Percent.Oligochaeta","Percent.Chironomidae","Percent.Amphipoda","Percent.Isopoda","Percent.Coleoptera",
+                  "Ephem.as.Baetidae","Percent.EPT","Percent.mEPT","Percent.ICHAEBO",
+                  "EPT.Richness","Ephem.Richness","Percent.Ephem","Plec.Richness",
+                  "Percent.Plec","Trich.Richness","Percent.Trich","EPT.per.EPT.and.Chir",
+                  "Percent.Non.Chir.Dip","Trich.as.Hydropsychidae","Coleo.as.Elmidae","Percent.CIGH")
+      Sensitivity<-c("Intolerants.Richness" ,"Percent.Intolerants","HBI")
       Hydrology<-c("CEFI")
-      Habitat.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent","Burrower.Richness","Sprawler.Percent",
-                        "Sprawler.Richness")
-      Feeding.Guilds<-c("Predator.Percent","Predator.Richness", "ScraperGrazer.Percent","ScraperGrazer.Richness",
-                        "Shredder.Percent", "Shredder.Richness", "Filterer.Percent", "Filterer.Richness", "Gatherer.Percent",
-                        "Gatherer.Richness")
+      Habitat.Guilds<-c("Predator.Percent" ,"Predator.Richness",
+                        "ScraperGrazer.Percent","ScraperGrazer.Richness",
+                        "Shredder.Richness","Shredder.Percent"
+                        ,"Filterer.Percent","Filterer.Richness",
+                        "Gatherer.Percent","Gatherer.Richness",
+                        "ScraperGrazer.to.Shredder.Collector")
+      Feeding.Guilds<-c("Clinger.Percent","Clinger.Richness","Burrower.Percent",
+                        "Burrower.Richness","Sprawler.Percent","Sprawler.Richness",
+                        "Burrower.to.Sprawler.Clinger")
       
       #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
-      plot.data<-data.frame(t(data.frame(max=rep(1,6),min=rep(0,6),test=NA)))
-      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds")
+      #plot.data<-data.frame(categories=c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Physical.Habitat", "Food.Web"), test=NA)
+      plot.data<-data.frame(t(data.frame(max=rep(1,7),min=rep(0,7),test=NA)))
+      colnames(plot.data)<-c("Community.Structure", "Biodiversity", "Sensitivity", "Hydrology", "Habitat.Guilds", "Feeding.Guilds","Taxonomy")
       rownames(plot.data)[3]<-input$in_batch_test_result_select
       
       for (i in as.character(colnames(plot.data))) {
@@ -2118,7 +2129,10 @@ shinyServer(function(input, output, session) {
             tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
             plot.data[3,i]<-tsa.NCPinterval
           } else {
-            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],
+                                  apply(data1[1:(nrow(data1)-1),are.nas],2,mean),
+                                  corpcor::pseudoinverse(cov(data1[1:(nrow(data1)-1),are.nas])),
+                                  inverted = T)
             tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
             tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
             tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
@@ -2529,7 +2543,10 @@ shinyServer(function(input, output, session) {
             tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
             plot.data[3,i]<-tsa.NCPinterval
           } else {
-            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],
+                                  apply(data1[1:(nrow(data1)-1),are.nas],2,mean),
+                                  corpcor::pseudoinverse(cov(data1[1:(nrow(data1)-1),are.nas])),
+                                  inverted = T)
             tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
             tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
             tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
@@ -2624,7 +2641,11 @@ shinyServer(function(input, output, session) {
             tsa.NCPinterval<-1-pf(tsa.dist, 1, (nRef-1), tsa.lambda, log=FALSE)
             plot.data[3,i]<-tsa.NCPinterval
           } else {
-            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],apply(data1[1:(nrow(data1)-1),are.nas],2,mean),cov(data1[1:(nrow(data1)-1),are.nas]))
+            tsa.dist<-mahalanobis(data1[nrow(data1),are.nas],
+                                  apply(data1[1:(nrow(data1)-1),are.nas],2,mean),
+                                  corpcor::pseudoinverse(cov(data1[1:(nrow(data1)-1),are.nas])),
+                                  inverted = T)
+            
             tsa.lambda<-qchisq(0.05,ncol(data1), ncp = 0, lower.tail = FALSE, log.p = FALSE)*(nRef/2)
             tsa.F<-((nRef-ncol(data1))*nRef*tsa.dist)/(ncol(data1)*(nRef-1))
             tsa.NCPinterval<-1-pf(tsa.F, ncol(data1), (nRef-ncol(data1)), tsa.lambda, log=FALSE)
