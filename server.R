@@ -1,5 +1,7 @@
 #Note to future self. If you change HBI or taxa traits, need to update the data files here as well
 #
+#Note to future self: you added metrics to benth.metUI - add them to the boxplot and circle plot categories! You lazy fuck
+#
 
 library(BenthicAnalysistesting)
 library(shinyjs)
