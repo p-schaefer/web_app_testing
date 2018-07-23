@@ -180,7 +180,7 @@ body <- shinydashboard::dashboardBody(
                            br(),
                            br(),
                            fluidRow(
-                             tabBox("Data",width=12,
+                             tabBox(title ="Data",width=12,
                                     tabPanel("Raw",status="warning",collapsible = T,solidHeader = T,
                                              fluidPage(
                                                DT::dataTableOutput("rawDataView"),
@@ -312,7 +312,7 @@ body <- shinydashboard::dashboardBody(
           
           conditionalPanel("input.sidebarmenu === 'transSummaryMetrics'",
                            fluidRow(
-                             tabBox("Transformations",width=12,
+                             tabBox(title ="Transformations",width=12,
                                     tabPanel("Single Metrics",
                                              fluidRow(
                                                column(width=3,
@@ -501,7 +501,7 @@ body <- shinydashboard::dashboardBody(
           ##################################################
           conditionalPanel("input.sidebarmenu === 'RCA_sub'",
                            fluidRow(
-                             tabBox("RCA",width=12,
+                             tabBox(title ="RCA",width=12,
                                     tabPanel(h4("Nearest-Neighbour Site Matching"),
                                              fluidRow(
                                                column(width=8,
@@ -627,7 +627,7 @@ body <- shinydashboard::dashboardBody(
           conditionalPanel("input.sidebarmenu === 'RCA_sub_batch'",
                            fluidRow(
                              h3("Integrity Assessment by Reference Condition Approach"),
-                             tabBox("RCA",width=12,
+                             tabBox(title ="RCA",width=12,
                                     tabPanel(h4("Batch Setup"),
                                              fluidRow(
                                                box(title="Nearest-Neighbour Options",width=4,
